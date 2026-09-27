@@ -57,6 +57,14 @@ Supported view types:
   traceability, dependencies, behavior, state
 
 Use `:SysmlView {type}` or `sysml view {type}`.
+Tree, graph, and semantic views open in a dedicated tab, leaving the source tab
+available. Open views refresh after edits to loaded SysML/KerML buffers in the
+same workspace, including unsaved text sent over the RPC backend.
+:SysmlGraph without a focus argument shows the whole workspace; provide an
+element name to limit the graph.
+
+SysML folds are open by default. Adjust `foldlevel` in your ftplugin if you
+prefer collapsed folds.
 
 ==============================================================================
 LIMITATIONS                                            *sysml-vim-limitations*

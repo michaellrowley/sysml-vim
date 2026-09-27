@@ -30,3 +30,5 @@ All commands that read a model require the configured SysML language server. See
 - `:SysmlHealth`
 - `:SysmlLog`
 - `:SysmlRestart`
+
+`:SysmlTree`, `:SysmlView`, and `:SysmlGraph` open in a dedicated tab instead of splitting the current window. `:SysmlGraph` with no argument renders the whole workspace; pass a model element name to focus it. The source tab stays available, and each view refreshes after edits to loaded SysML/KerML buffers in its workspace. The persistent RPC backend sends those buffers' current text, including unsaved edits, to the parser. If RPC is unavailable while a model buffer has unsaved changes, the plugin reports that it cannot safely render a current view rather than displaying stale disk contents.

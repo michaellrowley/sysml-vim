@@ -7,6 +7,7 @@
 - Added explicit parser metadata and response validation; no local subset parser or fallback is provided, and the LSP semantic checks are not represented as Pilot-equivalent conformance.
 - Updated the one-command macOS installer to install Node.js prerequisites, the pinned LSP package, a dedicated Python environment, and Vim configuration.
 - Fixed persistent Vim RPC job reuse so consecutive diagnostics and graph requests work with Vim's job objects.
+- Opened SysML folds by default and moved tree/graph/semantic views into dedicated full-screen tabs that refresh from unsaved workspace buffers.
 
 ## 0.1.0 - 2026-09-27
 

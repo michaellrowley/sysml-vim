@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import sys
 from urllib.parse import unquote, urlparse
 from typing import Any
@@ -47,7 +48,7 @@ def relationship(kind: str, source: str, target: str) -> dict[str, str]:
     return {"type": kind, "source": source, "target": target}
 
 
-def model_for(path: Path, version: int) -> dict[str, Any]:
+def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]:
     filename = path.name
     if filename == "vehicle.sysml":
         elements = [
@@ -252,6 +253,44 @@ def model_for(path: Path, version: int) -> dict[str, Any]:
         elements = []
         relationships = []
 
+    existing_names = set()
+    pending_elements = list(elements)
+    while pending_elements:
+        model_element = pending_elements.pop()
+        existing_names.add(model_element["name"])
+        pending_elements.extend(model_element.get("children", []))
+    for declaration in re.finditer(
+        r"^\s*part def\s+([A-Za-z_]\w*)\s*;",
+        source_text,
+        re.MULTILINE,
+    ):
+        declaration_name = declaration.group(1)
+        if declaration_name in existing_names:
+            continue
+        declaration_line = source_text.count("\n", 0, declaration.start())
+        line_text = source_text.splitlines()[declaration_line]
+        declaration_column = line_text.find(declaration_name)
+        package_element = next(
+            (
+                model_element
+                for model_element in elements
+                if model_element["type"] == "package"
+            ),
+            None,
+        )
+        if package_element is not None:
+            package_element["children"].append(
+                element(
+                    declaration_name,
+                    "part def",
+                    declaration_line,
+                    max(0, declaration_column - 2),
+                    declaration_line,
+                    len(line_text),
+                )
+            )
+            existing_names.add(declaration_name)
+
     return {
         "version": version,
         "elements": elements,
@@ -437,14 +476,22 @@ while True:
             {
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "result": model_for(document_path, document.get("version", 1)),
+                "result":                 model_for(
+                    document_path,
+                    document.get("version", 1),
+                    document.get("text", ""),
+                ),
             }
         )
     elif method == "textDocument/documentSymbol":
         document_uri = parameters.get("textDocument", {}).get("uri")
         document = documents.get(document_uri, {})
         document_path = Path(unquote(urlparse(document_uri).path))
-        model_result = model_for(document_path, document.get("version", 1))
+        model_result = model_for(
+            document_path,
+            document.get("version", 1),
+            document.get("text", ""),
+        )
         send_message(
             {
                 "jsonrpc": "2.0",
@@ -458,7 +505,11 @@ while True:
         target_name = None
         for candidate_uri, document in documents.items():
             document_path = Path(unquote(urlparse(candidate_uri).path))
-            model_result = model_for(document_path, document.get("version", 1))
+            model_result = model_for(
+                document_path,
+                document.get("version", 1),
+                document.get("text", ""),
+            )
             symbols = document_symbols(model_result["elements"], document.get("text", ""))
             if candidate_uri == document_uri:
                 target_name = find_document_symbol(symbols, position)

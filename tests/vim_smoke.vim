@@ -34,12 +34,15 @@ if empty(getqflist())
   cquit 2
 endif
 call sysml#graph('Vehicle')
-if bufname('%') !=# 'sysml-graph'
+if bufname('%') !~# '^sysml-graph-'
   cquit 3
 endif
+if tabpagenr('$') != 2 || winnr('$') != 1
+  cquit 5
+endif
 call sysml#graph('Vehicle')
-if bufname('%') !=# 'sysml-graph'
-  cquit 3
+if bufname('%') !~# '^sysml-graph-'
+  cquit 6
 endif
 
 quitall!

@@ -20,8 +20,10 @@ class WorkspaceIndex:
         self.references_by_name: dict[str, list[Reference]] = {}
         self.parser_info: dict[str, Any] = {}
         self.source_snapshot: dict[str, tuple[int, int]] = {}
+        self.document_overrides: dict[str, str] = {}
 
-    def refresh(self) -> None:
+    def refresh(self, document_overrides: Mapping[str, str] | None = None) -> None:
+        normalized_overrides = self._normalize_document_overrides(document_overrides)
         self.files.clear()
         self.symbols_by_name.clear()
         self.references_by_name.clear()
@@ -31,27 +33,37 @@ class WorkspaceIndex:
         source_files = list(iter_model_files(self.root))
         parser_inputs = []
         source_snapshot = {}
+        indexed_paths: set[str] = set()
         for source_file in source_files:
             try:
                 file_stat = source_file.stat()
-                source_text = source_file.read_text(encoding="utf-8")
+                disk_text = source_file.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as error:
                 raise ParserBackendError(f"Unable to read model file {source_file}: {error}") from error
             resolved_path = str(source_file.resolve())
+            source_text = normalized_overrides.get(resolved_path, disk_text)
             parser_inputs.append({"path": resolved_path, "text": source_text})
             source_snapshot[resolved_path] = (file_stat.st_mtime_ns, file_stat.st_size)
+            indexed_paths.add(resolved_path)
+
+        # Unsaved named buffers may represent new files that are not on disk yet.
+        for resolved_path, source_text in normalized_overrides.items():
+            if resolved_path not in indexed_paths:
+                parser_inputs.append({"path": resolved_path, "text": source_text})
 
         parser_response = self.parser_adapter.parse_workspace(self.root, parser_inputs)
         self.parser_info, parsed_files = self._parse_response(parser_response, parser_inputs)
         self.files = {parsed.path: parsed for parsed in parsed_files}
         self.source_snapshot = source_snapshot
+        self.document_overrides = normalized_overrides
         for parsed in self.files.values():
             for symbol in parsed.symbols:
                 self.symbols_by_name.setdefault(symbol.name, []).append(symbol)
             for reference in parsed.references:
                 self.references_by_name.setdefault(reference.name, []).append(reference)
 
-    def is_current(self) -> bool:
+    def is_current(self, document_overrides: Mapping[str, str] | None = None) -> bool:
+        normalized_overrides = self._normalize_document_overrides(document_overrides)
         current_snapshot = {}
         for source_file in iter_model_files(self.root):
             try:
@@ -62,7 +74,33 @@ class WorkspaceIndex:
                 file_stat.st_mtime_ns,
                 file_stat.st_size,
             )
-        return current_snapshot == self.source_snapshot and bool(self.parser_info)
+        return (
+            current_snapshot == self.source_snapshot
+            and normalized_overrides == self.document_overrides
+            and bool(self.parser_info)
+        )
+
+    def _normalize_document_overrides(
+        self,
+        document_overrides: Mapping[str, str] | None,
+    ) -> dict[str, str]:
+        normalized_overrides: dict[str, str] = {}
+        for source_path, source_text in (document_overrides or {}).items():
+            if not isinstance(source_path, str) or not isinstance(source_text, str):
+                raise ParserBackendError("document overrides must map file paths to text")
+            resolved_path = Path(source_path).expanduser().resolve()
+            if resolved_path.suffix.lower() not in {".sysml", ".kerml"}:
+                raise ParserBackendError(
+                    f"document override must be a .sysml or .kerml file: {resolved_path}"
+                )
+            try:
+                resolved_path.relative_to(self.root)
+            except ValueError as error:
+                raise ParserBackendError(
+                    f"document override is outside the workspace: {resolved_path}"
+                ) from error
+            normalized_overrides[str(resolved_path)] = source_text
+        return normalized_overrides
 
     def _parse_response(
         self,

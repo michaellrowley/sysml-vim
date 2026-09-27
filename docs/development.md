@@ -25,5 +25,6 @@ pytest -q
 
 ```bash
 vim -Nu NONE -n -es -S tests/vim_smoke.vim
+vim -Nu NONE -n -es -S tests/vim_view_smoke.vim
 nvim --headless -u NONE -c "source plugin/sysml.vim" -c "qa" || true
 ```

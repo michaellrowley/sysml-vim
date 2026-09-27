@@ -49,13 +49,14 @@ Checked on 2026-09-27:
 ### Vim / Neovim plugin
 
 - Filetype detection for `.sysml` and `.kerml`
-- Syntax highlighting, indentation, fold expression, comments
+- Syntax highlighting, indentation, fold expression with folds open by default, comments
 - Commands: `:SysmlCheck`, `:SysmlTree`, `:SysmlView`, `:SysmlFind`, `:SysmlDefinition`, `:SysmlReferences`, `:SysmlHover`, `:SysmlHealth`
 - `<Plug>` mappings and non-destructive defaults (`gd`, `gr`, `K`)
 - Quickfix integration for diagnostics/references/queries
 - Async check path where Vim `job_start()` is available
 - Persistent RPC backend mode (`sysml-rpc`) with safe fallback to one-shot CLI invocations
 - Block-based node/edge model view in Vim via `:SysmlGraph` with ELK-style hierarchical layered layout
+- Tree, graph, and semantic views open in a dedicated full-screen tab and refresh from unsaved model buffers
 
 ## Quick start
 

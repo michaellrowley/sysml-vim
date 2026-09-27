@@ -1,6 +1,8 @@
 let s:last_log = []
 let s:rpc_job = 0
 let s:rpc_seq = 0
+let s:view_sessions = {}
+let s:view_refresh_timer = -1
 
 function! s:sysml_word() abort
   return expand('<cword>')
@@ -140,6 +142,255 @@ function! s:open_result_buffer(name, lines) abort
   call setline(1, empty(a:lines) ? [''] : a:lines)
 endfunction
 
+function! s:active_view_context() abort
+  let session_key = string(bufnr('%'))
+  if has_key(s:view_sessions, session_key)
+    let session = s:view_sessions[session_key]
+    return {
+          \ 'source_buffer': session.source_buffer,
+          \ 'path': session.path,
+          \ 'focus': get(session, 'focus', '')
+          \ }
+  endif
+  return {'source_buffer': bufnr('%'), 'path': s:workspace_root(), 'focus': ''}
+endfunction
+
+function! s:is_model_file(file_path) abort
+  return a:file_path =~? '\.\(sysml\|kerml\)$'
+endfunction
+
+function! s:path_is_in_workspace(file_path, workspace_path) abort
+  let resolved_file = resolve(fnamemodify(a:file_path, ':p'))
+  let resolved_workspace = resolve(fnamemodify(a:workspace_path, ':p'))
+  if resolved_file ==# resolved_workspace
+    return 1
+  endif
+  let workspace_prefix = substitute(resolved_workspace, '[/\\]\+$', '', '') . '/'
+  return stridx(resolved_file, workspace_prefix) == 0
+endfunction
+
+function! s:workspace_documents(workspace_path, preferred_buffer) abort
+  let documents_by_path = {}
+  let has_modified_buffers = 0
+  let workspace_buffers = getbufinfo({'bufloaded': 1})
+
+  " Add other modified workspace files first so the active source buffer wins on duplicates.
+  for preferred_pass in [0, 1]
+    for buffer_info in workspace_buffers
+      let buffer_number = buffer_info.bufnr
+      let is_preferred_buffer = buffer_number == a:preferred_buffer
+      if is_preferred_buffer != preferred_pass
+        continue
+      endif
+      if empty(buffer_info.name)
+        continue
+      endif
+      let file_path = resolve(fnamemodify(buffer_info.name, ':p'))
+      if !s:is_model_file(file_path)
+        continue
+      endif
+      if !s:path_is_in_workspace(file_path, a:workspace_path)
+        continue
+      endif
+      let has_unsaved_changes = getbufvar(buffer_number, '&modified')
+      if !is_preferred_buffer && !has_unsaved_changes
+        continue
+      endif
+      let buffer_lines = getbufline(buffer_number, 1, '$')
+      let documents_by_path[file_path] = {
+            \ 'path': file_path,
+            \ 'text': join(empty(buffer_lines) ? [''] : buffer_lines, "\n")
+            \ }
+      if has_unsaved_changes
+        let has_modified_buffers = 1
+      endif
+    endfor
+  endfor
+
+  return {
+        \ 'documents': values(documents_by_path),
+        \ 'has_modified_buffers': has_modified_buffers
+        \ }
+endfunction
+
+function! s:view_request(session) abort
+  let params = copy(a:session.params)
+  let document_state = s:workspace_documents(
+        \ a:session.path,
+        \ a:session.source_buffer
+        \ )
+  if !empty(document_state.documents)
+    let params.documents = document_state.documents
+  endif
+  let rpc = s:rpc_request(a:session.method, params)
+  if !get(rpc, 'ok', v:false)
+    return {
+          \ 'ok': v:false,
+          \ 'error': get(get(rpc, 'error', {}), 'message', 'RPC request failed'),
+          \ 'has_modified_buffers': document_state.has_modified_buffers
+          \ }
+  endif
+
+  let result = rpc.result
+  if a:session.method ==# 'tree'
+    let lines = s:tree_lines(result, a:session.path)
+  elseif a:session.method ==# 'view_text'
+    let lines = split(get(result, 'text', ''), "\n")
+  else
+    let lines = split(get(result, 'graph', ''), "\n")
+  endif
+  return {
+        \ 'ok': v:true,
+        \ 'lines': lines,
+        \ 'has_modified_buffers': document_state.has_modified_buffers
+        \ }
+endfunction
+
+function! s:tree_lines(tree, fallback_path) abort
+  let lines = ['SysML Tree: ' . get(a:tree, 'root', a:fallback_path), '']
+  for [file_path, symbols] in items(get(a:tree, 'files', {}))
+    call add(lines, file_path)
+    for symbol in symbols
+      call add(lines, printf('  - %s [%s] (line %d)', symbol.name, symbol.kind, symbol.line))
+    endfor
+  endfor
+  return lines
+endfunction
+
+function! s:open_model_view(buffer_name, method, path, params, fallback_args) abort
+  let context = s:active_view_context()
+  let session = {
+        \ 'source_buffer': context.source_buffer,
+        \ 'path': a:path,
+        \ 'method': a:method,
+        \ 'focus': get(a:params, 'focus', ''),
+        \ 'params': copy(a:params)
+        \ }
+  let view_response = s:view_request(session)
+  if get(view_response, 'ok', v:false)
+    let lines = view_response.lines
+  elseif get(view_response, 'has_modified_buffers', v:false)
+    echohl ErrorMsg
+    echom 'sysml view failed; unsaved SysML text requires a working RPC backend: ' . view_response.error
+    echohl None
+    return
+  else
+    let command_result = s:run_sync(a:fallback_args)
+    if command_result.status != 0 && empty(command_result.lines)
+      echohl ErrorMsg
+      echom 'sysml view command failed'
+      echohl None
+      return
+    endif
+    if a:method ==# 'tree'
+      let tree_result = s:json_decode_lines(command_result.lines)
+      if !has_key(tree_result, 'files')
+        echohl ErrorMsg
+        echom 'sysml tree command returned invalid data'
+        echohl None
+        return
+      endif
+      let lines = s:tree_lines(tree_result, a:path)
+    else
+      let lines = command_result.lines
+    endif
+  endif
+  call s:open_view_buffer(a:buffer_name, lines, session)
+endfunction
+
+function! s:replace_buffer_lines(buffer_number, lines) abort
+  let replacement_lines = empty(a:lines) ? [''] : a:lines
+  let previous_line_count = len(getbufline(a:buffer_number, 1, '$'))
+  call setbufline(a:buffer_number, 1, replacement_lines)
+  if previous_line_count > len(replacement_lines) && exists('*deletebufline')
+    call deletebufline(a:buffer_number, len(replacement_lines) + 1, previous_line_count)
+  endif
+  call setbufvar(a:buffer_number, '&modified', 0)
+endfunction
+
+function! s:open_view_buffer(name, lines, session) abort
+  let buffer_name = a:name . '-' . a:session.source_buffer
+  let view_buffer = bufnr(buffer_name)
+  if view_buffer >= 0
+    let view_windows = win_findbuf(view_buffer)
+    if !empty(view_windows)
+      let target_window = view_windows[0]
+      let tab_and_window = win_id2tabwin(target_window)
+      call win_gotoid(target_window)
+      if len(tabpagebuflist(tab_and_window[0])) > 1
+        tab split
+      endif
+    else
+      tabnew
+      execute 'buffer ' . view_buffer
+    endif
+  else
+    tabnew
+    execute 'file ' . fnameescape(buffer_name)
+    let view_buffer = bufnr('%')
+  endif
+
+  setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile
+  setlocal modifiable
+  call s:replace_buffer_lines(bufnr('%'), a:lines)
+  let s:view_sessions[string(bufnr('%'))] = copy(a:session)
+  let b:sysml_source_buffer = a:session.source_buffer
+  let b:sysml_workspace_path = a:session.path
+endfunction
+
+function! sysml#_schedule_view_refresh(source_buffer) abort
+  if empty(s:view_sessions) || !bufexists(a:source_buffer)
+    return
+  endif
+  let changed_path = bufname(a:source_buffer)
+  if empty(changed_path) || !s:is_model_file(changed_path)
+    return
+  endif
+  if s:view_refresh_timer >= 0
+    call timer_stop(s:view_refresh_timer)
+  endif
+  if exists('*timer_start')
+    let delay = get(g:, 'sysml_view_refresh_delay_ms', 500)
+    let s:view_refresh_timer = timer_start(
+          \ delay,
+          \ function('sysml#_refresh_views', [a:source_buffer])
+          \ )
+  else
+    call sysml#_refresh_views(a:source_buffer, -1)
+  endif
+endfunction
+
+function! sysml#_refresh_views(source_buffer, timer_id) abort
+  let s:view_refresh_timer = -1
+  if !bufexists(a:source_buffer)
+    return
+  endif
+  let changed_path = bufname(a:source_buffer)
+  if empty(changed_path)
+    return
+  endif
+
+  for session_key in keys(copy(s:view_sessions))
+    let session = s:view_sessions[session_key]
+    let result_buffer = str2nr(session_key)
+    if !bufexists(result_buffer)
+      call remove(s:view_sessions, session_key)
+      continue
+    endif
+    if !s:path_is_in_workspace(changed_path, session.path)
+      continue
+    endif
+    let refreshed_view = s:view_request(session)
+    if !get(refreshed_view, 'ok', v:false)
+      echohl WarningMsg
+      echom 'sysml view refresh failed: ' . refreshed_view.error
+      echohl None
+      continue
+    endif
+    call s:replace_buffer_lines(result_buffer, refreshed_view.lines)
+  endfor
+endfunction
+
 function! s:set_qf(diagnostics) abort
   let qf = []
   for d in a:diagnostics
@@ -192,68 +443,40 @@ endfunction
 
 function! sysml#tree(...) abort
   let path = a:0 > 0 ? a:1 : s:workspace_root()
-  let payload = {}
-  let rpc = s:rpc_request('tree', {'path': path})
-  if get(rpc, 'ok', v:false)
-    let payload = rpc.result
-  else
-    let res = s:run_sync(['tree', path])
-    let payload = s:json_decode_lines(res.lines)
-  endif
-  let lines = ['SysML Tree: ' . get(payload, 'root', path), '']
-  for [file, symbols] in items(get(payload, 'files', {}))
-    call add(lines, file)
-    for sym in symbols
-      call add(lines, printf('  - %s [%s] (line %d)', sym.name, sym.kind, sym.line))
-    endfor
-  endfor
-  call s:open_result_buffer('sysml-tree', lines)
+  call s:open_model_view('sysml-tree', 'tree', path, {'path': path}, ['tree', path])
 endfunction
 
 function! sysml#view(...) abort
   let type = a:0 > 0 ? a:1 : g:sysml_default_view
   let focus = a:0 > 1 ? a:2 : ''
-
-  let params = {'path': s:workspace_root(), 'type': type}
+  let context = s:active_view_context()
+  let params = {'path': context.path, 'type': type}
   if !empty(focus)
     let params.focus = focus
   endif
-  let rpc = s:rpc_request('view_text', params)
-  if get(rpc, 'ok', v:false)
-    call s:open_result_buffer('sysml-view-' . type, split(get(rpc.result, 'text', ''), "\n"))
-    return
-  endif
-
-  let args = ['view', type, '--path', s:workspace_root(), '--format', 'text']
+  let args = ['view', type, '--path', context.path, '--format', 'text']
   if !empty(focus)
     call extend(args, ['--focus', focus])
   endif
-  let res = s:run_sync(args)
-  call s:open_result_buffer('sysml-view-' . type, res.lines)
+  call s:open_model_view('sysml-view-' . type, 'view_text', context.path, params, args)
 endfunction
 
 function! sysml#graph(...) abort
-  let focus = a:0 > 0 ? a:1 : s:sysml_word()
+  let context = s:active_view_context()
+  let focus = a:0 > 0 ? a:1 : context.focus
   if empty(focus)
     let focus = ''
   endif
 
-  let params = {'path': s:workspace_root(), 'type': 'composition', 'depth': 5}
+  let params = {'path': context.path, 'type': 'composition', 'depth': 5}
   if !empty(focus)
     let params.focus = focus
   endif
-  let rpc = s:rpc_request('view_graph', params)
-  if get(rpc, 'ok', v:false)
-    call s:open_result_buffer('sysml-graph', split(get(rpc.result, 'graph', ''), "\n"))
-    return
-  endif
-
-  let args = ['view', 'composition', '--path', s:workspace_root(), '--format', 'graph', '--depth', '5']
+  let args = ['view', 'composition', '--path', context.path, '--format', 'graph', '--depth', '5']
   if !empty(focus)
     call extend(args, ['--focus', focus])
   endif
-  let res = s:run_sync(args)
-  call s:open_result_buffer('sysml-graph', res.lines)
+  call s:open_model_view('sysml-graph', 'view_graph', context.path, params, args)
 endfunction
 
 function! sysml#find(...) abort

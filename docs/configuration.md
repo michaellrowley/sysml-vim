@@ -7,6 +7,9 @@
 - `g:sysml_use_rpc` (default: `1`) enables persistent `sysml-rpc` usage with CLI fallback
 - `g:sysml_rpc_cmd` (default: `sysml-rpc`)
 - `g:sysml_rpc_timeout_ms` (default: `120000`; allows the LSP to start and analyze a workspace)
+- `g:sysml_view_refresh_delay_ms` (default: `500`; debounce delay before refreshing open views after model edits)
+
+SysML folds are open by default; set `foldlevel` in your SysML ftplugin or after-ftplugin configuration if you prefer collapsed folds.
 
 ## Environment variables
 

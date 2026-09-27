@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 
@@ -136,5 +137,40 @@ def test_rpc_view_text_and_health_report_parser_capabilities():
         proc.stdin.flush()
         health_resp = json.loads(proc.stdout.readline())
         assert health_resp["result"]["parser"]["configured"] is True
+    finally:
+        proc.terminate()
+
+
+def test_rpc_tree_includes_unsaved_document_text():
+    model_path = str(Path("tests/fixtures/workspace/vehicle.sysml").resolve())
+    source_text = Path(model_path).read_text(encoding="utf-8")
+    source_text = source_text.replace(
+        "  part def Wheel;\n}",
+        "  part def Wheel;\n  part def DraftOnly;\n}",
+    )
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "sysml_vim.rpc"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        request = {
+            "jsonrpc": "2.0",
+            "id": 24,
+            "method": "tree",
+            "params": {
+                "path": str(Path(model_path).parent),
+                "documents": [{"path": model_path, "text": source_text}],
+            },
+        }
+        proc.stdin.write(json.dumps(request) + "\n")
+        proc.stdin.flush()
+        response = json.loads(proc.stdout.readline())
+        assert any(
+            symbol["name"] == "DraftOnly"
+            for symbol in response["result"]["files"][model_path]
+        )
     finally:
         proc.terminate()

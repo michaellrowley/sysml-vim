@@ -20,13 +20,35 @@ def _error(id_value: Any, code: int, message: str) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": id_value, "error": {"code": code, "message": message}}
 
 
-def _index_for(path_value: str, force_refresh: bool = False) -> WorkspaceIndex:
+def _document_overrides(params: dict[str, Any]) -> dict[str, str]:
+    document_records = params.get("documents", [])
+    if not isinstance(document_records, list):
+        raise ValueError("documents must be a list of path/text objects")
+
+    document_overrides: dict[str, str] = {}
+    for document_record in document_records:
+        if not isinstance(document_record, dict):
+            raise ValueError("each document override must be an object")
+        document_path = document_record.get("path")
+        document_text = document_record.get("text")
+        if not isinstance(document_path, str) or not isinstance(document_text, str):
+            raise ValueError("each document override requires string path and text fields")
+        resolved_path = str(Path(document_path).expanduser().resolve())
+        document_overrides[resolved_path] = document_text
+    return document_overrides
+
+
+def _index_for(
+    path_value: str,
+    force_refresh: bool = False,
+    document_overrides: dict[str, str] | None = None,
+) -> WorkspaceIndex:
     path = str(Path(path_value).resolve())
     if path not in _INDEX_CACHE:
         _INDEX_CACHE[path] = WorkspaceIndex(Path(path))
     index = _INDEX_CACHE[path]
-    if force_refresh or not index.is_current():
-        index.refresh()
+    if force_refresh or not index.is_current(document_overrides):
+        index.refresh(document_overrides)
     return index
 
 
@@ -38,7 +60,11 @@ def _handle(method: str, params: dict[str, Any]) -> Any:
     if method == "health":
         return WorkspaceIndex(Path(path)).health()
 
-    index = _index_for(path, force_refresh=bool(params.get("refresh", False)))
+    index = _index_for(
+        path,
+        force_refresh=bool(params.get("refresh", False)),
+        document_overrides=_document_overrides(params),
+    )
 
     if method == "check":
         return {"workspace": str(index.root), "diagnostics": index.diagnostics()}

@@ -75,6 +75,19 @@ def test_published_lsp_parses_models_and_reports_syntax_errors(tmp_path, monkeyp
         assert index.parser_info["name"] == "SysML v2 Language Server (ANTLR)"
         assert index.parser_info["version"] != "unknown"
 
+        unsaved_text = package_file.read_text(encoding="utf-8").replace(
+            "  requirement def SafeOperation;",
+            "  part def DraftVehicle;\n  requirement def SafeOperation;",
+        )
+        document_overrides = {str(package_file.resolve()): unsaved_text}
+        index.refresh(document_overrides)
+        assert index.definition("DraftVehicle")["kind"] == "part_def"
+        assert "DraftVehicle" not in package_file.read_text(encoding="utf-8")
+        assert index.is_current(document_overrides) is True
+        assert index.is_current() is False
+        index.refresh()
+        assert index.definition("DraftVehicle") is None
+
         package_file.write_text(
             package_file.read_text(encoding="utf-8").replace(
                 "attribute mass: Real;",
