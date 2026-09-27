@@ -15,6 +15,7 @@ COMMANDS                                                  *sysml-vim-commands*
 :SysmlCheckWorkspace [path]   Validate workspace (default: cwd).
 :SysmlTree [path]             Open model structure tree buffer.
 :SysmlView [type] [focus]     Open semantic text view.
+:SysmlGraph [focus]           Open graph-based hierarchical model view.
 :SysmlFind [kind] [name]      Populate quickfix with semantic query.
 :SysmlDefinition [name]       Jump to definition (default: <cword>).
 :SysmlReferences [name]       Quickfix references (default: <cword>).

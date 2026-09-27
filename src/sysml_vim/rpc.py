@@ -6,7 +6,7 @@ import sys
 from typing import Any
 
 from .adapter import OfficialPilotAdapter
-from .render import build_view, render_text
+from .render import build_view, render_graph, render_text
 from .workspace import WorkspaceIndex
 
 _INDEX_CACHE: dict[str, WorkspaceIndex] = {}
@@ -77,6 +77,10 @@ def _handle(method: str, params: dict[str, Any]) -> Any:
             raise ValueError("Missing required param: type")
         view = build_view(index, params["type"], params.get("focus"), int(params.get("depth", 3)))
         return {"text": render_text(view)}
+    if method == "view_graph":
+        view_type = params.get("type", "composition")
+        view = build_view(index, view_type, params.get("focus"), int(params.get("depth", 4)))
+        return {"graph": render_graph(view, params.get("focus"), int(params.get("depth", 4)))}
     if method == "health":
         health = index.health()
         health["official_adapter"] = OfficialPilotAdapter().capabilities()

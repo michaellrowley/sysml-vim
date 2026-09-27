@@ -20,12 +20,17 @@ def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, 
     if view_type in {"composition", "connections", "requirements", "traceability", "dependencies", "state", "behavior"}:
         edges: list[dict[str, Any]] = []
         focus_names = {s["name"] for s in symbols}
+        containment_edges = [
+            {"source": s["container"], "target": s["name"], "relation": "contains"}
+            for s in symbols
+            if s.get("container")
+        ]
         for ref in refs:
             source = ref.source or Path(ref.file).stem
             if ref.relation and (not focus or source in focus_names or ref.name in focus_names):
                 edges.append({"source": source, "target": ref.name, "relation": ref.relation})
         if view_type == "composition":
-            edges = [e for e in edges if e["relation"] in {"typed_by", "type"}]
+            edges = [e for e in edges if e["relation"] in {"typed_by", "type"}] + containment_edges
         elif view_type == "connections":
             edges = [e for e in edges if e["relation"] in {"type", "transition"}]
         elif view_type in {"requirements", "traceability"}:
@@ -52,6 +57,55 @@ def render_text(view: dict[str, Any]) -> str:
         for edge in view["edges"]:
             if edge["source"] in names:
                 lines.append(f"  {edge['source']} -[{edge['relation']}]-> {edge['target']}")
+    return "\n".join(lines)
+
+
+def render_graph(view: dict[str, Any], focus: str | None = None, depth: int = 4) -> str:
+    lines = [f"View Graph: {view['type']}", ""]
+    nodes_by_name = {node["name"]: node for node in view["nodes"]}
+    adjacency: dict[str, list[tuple[str, str]]] = {}
+    for edge in view["edges"]:
+        source = edge["source"]
+        target = edge["target"]
+        if source == target:
+            continue
+        adjacency.setdefault(source, []).append((edge["relation"], target))
+
+    for source in adjacency:
+        adjacency[source] = sorted(adjacency[source], key=lambda it: (it[0], it[1]))
+
+    if focus and focus in nodes_by_name:
+        roots = [focus]
+    else:
+        targets = {target for children in adjacency.values() for _, target in children}
+        roots = sorted([name for name in nodes_by_name if name not in targets]) or sorted(nodes_by_name)
+
+    def label(name: str) -> str:
+        node = nodes_by_name.get(name)
+        return f"{name} [{node['kind']}]" if node else name
+
+    def walk(name: str, prefix: str, level: int, stack: set[str]) -> None:
+        if level >= depth:
+            return
+        children = adjacency.get(name, [])
+        for i, (relation, target) in enumerate(children):
+            last = i == len(children) - 1
+            branch = "└─" if last else "├─"
+            lines.append(f"{prefix}{branch} {relation} → {label(target)}")
+            if target in stack:
+                loop_prefix = "   " if last else "│  "
+                lines.append(f"{prefix}{loop_prefix}↺ cycle")
+                continue
+            walk(target, prefix + ("   " if last else "│  "), level + 1, stack | {target})
+
+    for idx, root in enumerate(roots):
+        lines.append(label(root))
+        walk(root, "", 0, {root})
+        if idx != len(roots) - 1:
+            lines.append("")
+
+    if len(lines) == 2:
+        lines.append("(no graph relationships)")
     return "\n".join(lines)
 
 

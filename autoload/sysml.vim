@@ -218,6 +218,30 @@ function! sysml#view(...) abort
   call s:open_result_buffer('sysml-view-' . type, res.lines)
 endfunction
 
+function! sysml#graph(...) abort
+  let focus = a:0 > 0 ? a:1 : s:sysml_word()
+  if empty(focus)
+    let focus = ''
+  endif
+
+  let params = {'path': s:workspace_root(), 'type': 'composition', 'depth': 5}
+  if !empty(focus)
+    let params.focus = focus
+  endif
+  let rpc = s:rpc_request('view_graph', params)
+  if get(rpc, 'ok', v:false)
+    call s:open_result_buffer('sysml-graph', split(get(rpc.result, 'graph', ''), "\n"))
+    return
+  endif
+
+  let args = ['view', 'composition', '--path', s:workspace_root(), '--format', 'graph', '--depth', '5']
+  if !empty(focus)
+    call extend(args, ['--focus', focus])
+  endif
+  let res = s:run_sync(args)
+  call s:open_result_buffer('sysml-graph', res.lines)
+endfunction
+
 function! sysml#find(...) abort
   let kind = a:0 > 0 ? a:1 : 'part'
   let name = a:0 > 1 ? a:2 : ''

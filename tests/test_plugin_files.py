@@ -7,6 +7,7 @@ def test_plugin_exposes_required_commands():
         "SysmlCheck",
         "SysmlCheckWorkspace",
         "SysmlView",
+        "SysmlGraph",
         "SysmlTree",
         "SysmlFind",
         "SysmlDefinition",

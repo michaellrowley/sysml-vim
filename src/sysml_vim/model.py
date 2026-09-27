@@ -142,7 +142,7 @@ def parse_sysml(path: Path, text: str) -> ParsedFile:
                     kind=kind,
                     file=str(path),
                     range=_line_range(i, line, name),
-                    container=current_package,
+                    container=current_owner or current_package,
                     signature=line.strip(),
                 )
             )

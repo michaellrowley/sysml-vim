@@ -10,7 +10,7 @@
 - `sysml completion PREFIX [--path P] [--official]`
 - `sysml query KIND [--name N] [--path P] [--official]`
 - `sysml tree [path] [--official]`
-- `sysml view TYPE [--focus E] [--depth N] [--path P] [--format text|dot|svg|json] [--official]`
+- `sysml view TYPE [--focus E] [--depth N] [--path P] [--format text|dot|svg|json|graph] [--official]`
 - `sysml health [--path P]`
 - `sysml official-status`
 - `sysml adapter OP [--path P] [--payload JSON]`
@@ -20,6 +20,7 @@
 - `:SysmlCheck`
 - `:SysmlCheckWorkspace`
 - `:SysmlView`
+- `:SysmlGraph`
 - `:SysmlTree`
 - `:SysmlFind`
 - `:SysmlDefinition`

@@ -7,6 +7,9 @@ endif
 if !exists(':SysmlView')
   cquit 1
 endif
+if !exists(':SysmlGraph')
+  cquit 1
+endif
 if !exists(':SysmlRelationships')
   cquit 1
 endif

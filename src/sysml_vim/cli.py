@@ -7,7 +7,7 @@ import sys
 from typing import Any
 
 from .adapter import OfficialPilotAdapter
-from .render import build_view, render_dot, render_svg, render_text
+from .render import build_view, render_dot, render_graph, render_svg, render_text
 from .workspace import WorkspaceIndex
 
 
@@ -180,6 +180,8 @@ def cmd_view(args: argparse.Namespace) -> int:
         print(render_dot(view))
     elif args.format == "svg":
         print(render_svg(view))
+    elif args.format == "graph":
+        print(render_graph(view, args.focus, args.depth))
     return 0
 
 
@@ -263,7 +265,7 @@ def parser() -> argparse.ArgumentParser:
     view.add_argument("--focus")
     view.add_argument("--depth", type=int, default=3)
     view.add_argument("--path", default=".")
-    view.add_argument("--format", choices=["text", "dot", "svg", "json"], default="text")
+    view.add_argument("--format", choices=["text", "dot", "svg", "json", "graph"], default="text")
     view.add_argument("--official", action="store_true", help="try configured official adapter first")
     view.set_defaults(func=cmd_view)
 

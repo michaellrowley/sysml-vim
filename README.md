@@ -54,6 +54,7 @@ Checked on 2026-09-27:
 - Quickfix integration for diagnostics/references/queries
 - Async check path where Vim `job_start()` is available
 - Persistent RPC backend mode (`sysml-rpc`) with safe fallback to one-shot CLI invocations
+- Graph-based hierarchical model view in Vim via `:SysmlGraph` (composition containment/typing graph)
 
 ## Quick start
 
@@ -72,8 +73,7 @@ Line-delimited JSON-RPC 2.0 over stdio.
 
 Methods:
 
-- `check`, `symbols`, `definition`, `references`, `hover`, `completion`, `query`, `tree`, `view`, `health`, `shutdown`
-- `check`, `symbols`, `definition`, `references`, `hover`, `completion`, `query`, `tree`, `view`, `view_text`, `health`, `official`, `official_status`, `shutdown`
+- `check`, `symbols`, `definition`, `references`, `hover`, `completion`, `query`, `tree`, `view`, `view_text`, `view_graph`, `health`, `official`, `official_status`, `shutdown`
 
 Example request line:
 

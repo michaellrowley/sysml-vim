@@ -50,6 +50,19 @@ def test_cli_definition_and_view():
     assert code2 == 0
     assert view["type"] == "composition"
 
+    code3, out3 = run_cmd([
+        "view",
+        "composition",
+        "--path",
+        "tests/fixtures/workspace",
+        "--format",
+        "graph",
+        "--focus",
+        "Vehicle",
+    ])
+    assert code3 == 0
+    assert "View Graph: composition" in out3
+
 
 def test_cli_svg_view_branch_with_mock(monkeypatch, capsys):
     monkeypatch.setattr(cli, "render_svg", lambda _: "<svg>ok</svg>")

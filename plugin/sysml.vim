@@ -19,6 +19,7 @@ endif
 command! -nargs=? SysmlCheck call sysml#check(<f-args>)
 command! -nargs=? SysmlCheckWorkspace call sysml#check_workspace(<f-args>)
 command! -nargs=* SysmlView call sysml#view(<f-args>)
+command! -nargs=? SysmlGraph call sysml#graph(<f-args>)
 command! -nargs=? SysmlTree call sysml#tree(<f-args>)
 command! -nargs=* SysmlFind call sysml#find(<f-args>)
 command! -nargs=? SysmlDefinition call sysml#definition(<f-args>)

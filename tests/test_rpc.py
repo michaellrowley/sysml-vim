@@ -86,6 +86,17 @@ def test_rpc_view_text_and_health_include_adapter_capabilities():
         view_resp = json.loads(proc.stdout.readline())
         assert "View: requirements" in view_resp["result"]["text"]
 
+        graph_req = {
+            "jsonrpc": "2.0",
+            "id": 23,
+            "method": "view_graph",
+            "params": {"path": "tests/fixtures/workspace", "type": "composition", "focus": "Vehicle"},
+        }
+        proc.stdin.write(json.dumps(graph_req) + "\n")
+        proc.stdin.flush()
+        graph_resp = json.loads(proc.stdout.readline())
+        assert "View Graph: composition" in graph_resp["result"]["graph"]
+
         health_req = {
             "jsonrpc": "2.0",
             "id": 22,
