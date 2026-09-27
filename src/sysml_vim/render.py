@@ -114,7 +114,8 @@ def render_graph(view: dict[str, Any], focus: str | None = None, depth: int = 4)
     for lvl in layers:
         layers[lvl] = sorted(layers[lvl], key=lambda n: (nodes_by_name[n]["kind"], n.lower()))
 
-    box_width = min(28, max(14, max(len(n) for n in nodes_by_name) + 4))
+    box_label_max = max(len(f"{name}:{nodes_by_name[name]['kind']}") for name in nodes_by_name)
+    box_width = min(34, max(16, box_label_max + 4))
     box_height = 3
     x_gap = 8
     y_gap = 2
@@ -186,8 +187,6 @@ def render_graph(view: dict[str, Any], focus: str | None = None, depth: int = 4)
         for x in range(mid_x, end_x):
             put(x, end_y, "─")
         put(end_x, end_y, "▶")
-        label_y = max(0, min(height - 1, end_y - 1))
-        write_text(mid_x + 1, label_y, f"[{edge['relation']}]")
         edge_lines.append(f"{src} -[{edge['relation']}]-> {tgt}")
 
     canvas_lines = ["".join(row).rstrip() for row in canvas]

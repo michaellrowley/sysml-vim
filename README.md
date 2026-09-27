@@ -54,7 +54,7 @@ Checked on 2026-09-27:
 - Quickfix integration for diagnostics/references/queries
 - Async check path where Vim `job_start()` is available
 - Persistent RPC backend mode (`sysml-rpc`) with safe fallback to one-shot CLI invocations
-- Graph-based hierarchical model view in Vim via `:SysmlGraph` (composition containment/typing graph)
+- Block-based node/edge model view in Vim via `:SysmlGraph` with ELK-style hierarchical layered layout
 
 ## Quick start
 
