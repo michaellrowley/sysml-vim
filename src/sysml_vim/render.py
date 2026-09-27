@@ -39,7 +39,12 @@ def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, 
         elif view_type in {"behavior", "state"}:
             edges = [e for e in edges if e["relation"] in {"transition", "specializes"}]
         elif view_type == "dependencies":
-            edges = [e for e in edges if e["relation"] in {"import", "type", "typed_by", "allocate"}]
+            edges = [
+                edge
+                for edge in edges
+                if edge["relation"]
+                in {"import", "type", "typed_by", "allocate", "dependency"}
+            ]
         if focus:
             visible_names = set(focus_names)
             selected_edges: list[dict[str, Any]] = []
