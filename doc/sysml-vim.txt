@@ -44,6 +44,9 @@ CONFIGURATION                                        *sysml-vim-configuration*
 
 let g:sysml_backend_cmd = 'sysml'
 let g:sysml_default_view = 'composition'
+let g:sysml_use_rpc = 1
+let g:sysml_rpc_cmd = 'sysml-rpc'
+let g:sysml_rpc_timeout_ms = 4000
 
 ==============================================================================
 VIEWS                                                        *sysml-vim-views*
@@ -58,8 +61,8 @@ Use `:SysmlView {type}` or `sysml view {type}`.
 LIMITATIONS                                            *sysml-vim-limitations*
 
 The built-in parser is a transparent local subset parser for offline use.
-For authoritative semantics, configure SYSML_PILOT_COMMAND to an external
-adapter that invokes official SysML v2 pilot tooling.
+For authoritative semantics, configure SYSML_PILOT_COMMAND (argv mode) or
+SYSML_PILOT_RPC_COMMAND (JSON-RPC mode) to invoke official tooling adapters.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:

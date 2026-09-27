@@ -64,3 +64,37 @@ def test_rpc_missing_params_returns_invalid_params():
         assert resp["error"]["code"] == -32602
     finally:
         proc.terminate()
+
+
+def test_rpc_view_text_and_health_include_adapter_capabilities():
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "sysml_vim.rpc"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        view_req = {
+            "jsonrpc": "2.0",
+            "id": 21,
+            "method": "view_text",
+            "params": {"path": "tests/fixtures/workspace", "type": "requirements"},
+        }
+        proc.stdin.write(json.dumps(view_req) + "\n")
+        proc.stdin.flush()
+        view_resp = json.loads(proc.stdout.readline())
+        assert "View: requirements" in view_resp["result"]["text"]
+
+        health_req = {
+            "jsonrpc": "2.0",
+            "id": 22,
+            "method": "health",
+            "params": {"path": "tests/fixtures/workspace"},
+        }
+        proc.stdin.write(json.dumps(health_req) + "\n")
+        proc.stdin.flush()
+        health_resp = json.loads(proc.stdout.readline())
+        assert "official_adapter" in health_resp["result"]
+    finally:
+        proc.terminate()

@@ -16,3 +16,15 @@ def test_workspace_diagnostics_include_unresolved_reference():
     index.refresh()
     diagnostics = index.diagnostics()
     assert any("Unresolved reference" in d["message"] for d in diagnostics)
+
+
+def test_workspace_import_and_behavior_references():
+    index = WorkspaceIndex(Path("tests/fixtures/workspace"))
+    index.refresh()
+
+    vehicle_refs = index.references("Vehicle")
+    assert any(r.get("relation") == "import" for r in vehicle_refs)
+    assert any(r.get("relation") == "allocate" for r in vehicle_refs)
+
+    state_refs = index.references("Active")
+    assert any(r.get("relation") == "transition" for r in state_refs)

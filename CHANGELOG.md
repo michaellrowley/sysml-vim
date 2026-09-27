@@ -8,3 +8,6 @@
 - Added optional official-tooling adapter boundary (`SYSML_PILOT_COMMAND`)
 - Added Vim/Neovim plugin support (commands, mappings, syntax, indent, help)
 - Added tests, fixtures, CI workflows, and comprehensive documentation
+- Added official adapter RPC mode (`SYSML_PILOT_RPC_COMMAND`) and `--official` CLI option with local fallback
+- Added persistent Vim RPC client mode with safe one-shot CLI fallback
+- Expanded fixtures/tests for imports, allocation/traceability, behavior transitions, adapter modes, and new RPC methods

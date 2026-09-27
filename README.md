@@ -28,7 +28,8 @@ Checked on 2026-09-27:
 - Semantic views: package/composition/connections/requirements/traceability/dependencies/behavior/state
 - Rendering formats: text, Graphviz DOT, SVG (when `dot` is installed)
 - JSON-RPC server (`sysml-rpc`) with documented methods
-- Optional official-tooling adapter boundary via `SYSML_PILOT_COMMAND`
+- Optional official-tooling adapter boundary via `SYSML_PILOT_COMMAND` (argv mode) or `SYSML_PILOT_RPC_COMMAND` (JSON-RPC mode)
+- Optional `--official` CLI path for operations (`check`, `definition`, `view`, etc.) with automatic local fallback
 
 ### Vim / Neovim plugin
 
@@ -38,6 +39,7 @@ Checked on 2026-09-27:
 - `<Plug>` mappings and non-destructive defaults (`gd`, `gr`, `K`)
 - Quickfix integration for diagnostics/references/queries
 - Async check path where Vim `job_start()` is available
+- Persistent RPC backend mode (`sysml-rpc`) with safe fallback to one-shot CLI invocations
 
 ## Quick start
 
@@ -57,6 +59,7 @@ Line-delimited JSON-RPC 2.0 over stdio.
 Methods:
 
 - `check`, `symbols`, `definition`, `references`, `hover`, `completion`, `query`, `tree`, `view`, `health`, `shutdown`
+- `check`, `symbols`, `definition`, `references`, `hover`, `completion`, `query`, `tree`, `view`, `view_text`, `health`, `official`, `official_status`, `shutdown`
 
 Example request line:
 

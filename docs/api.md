@@ -4,6 +4,6 @@
 
 Methods:
 
-- `check`, `symbols`, `definition`, `references`, `hover`, `completion`, `query`, `tree`, `view`, `health`, `shutdown`
+- `check`, `symbols`, `definition`, `references`, `hover`, `completion`, `query`, `tree`, `view`, `view_text`, `health`, `official`, `official_status`, `shutdown`
 
 Each method accepts `params.path` and method-specific keys.

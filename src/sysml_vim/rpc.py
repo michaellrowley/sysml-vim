@@ -5,8 +5,11 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from .render import build_view
+from .adapter import OfficialPilotAdapter
+from .render import build_view, render_text
 from .workspace import WorkspaceIndex
+
+_INDEX_CACHE: dict[str, WorkspaceIndex] = {}
 
 
 def _result(id_value: Any, result: Any) -> dict[str, Any]:
@@ -17,13 +20,32 @@ def _error(id_value: Any, code: int, message: str) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": id_value, "error": {"code": code, "message": message}}
 
 
+def _index_for(path_value: str, force_refresh: bool = True) -> WorkspaceIndex:
+    path = str(Path(path_value).resolve())
+    if path not in _INDEX_CACHE:
+        _INDEX_CACHE[path] = WorkspaceIndex(Path(path))
+    index = _INDEX_CACHE[path]
+    if force_refresh:
+        index.refresh()
+    return index
+
+
 def _handle(method: str, params: dict[str, Any]) -> Any:
-    path = Path(params.get("path", ".")).resolve()
-    index = WorkspaceIndex(path)
-    index.refresh()
+    path = str(Path(params.get("path", ".")).resolve())
+
+    if method == "official_status":
+        return OfficialPilotAdapter().capabilities()
+    if method == "official":
+        if "operation" not in params:
+            raise ValueError("Missing required param: operation")
+        adapter = OfficialPilotAdapter()
+        payload = params.get("payload", {})
+        return adapter.invoke(params["operation"], Path(path), payload)
+
+    index = _index_for(path, force_refresh=bool(params.get("refresh", True)))
 
     if method == "check":
-        return index.diagnostics()
+        return {"workspace": str(index.root), "diagnostics": index.diagnostics()}
     if method == "symbols":
         return index.symbols(params.get("query"))
     if method == "definition":
@@ -50,8 +72,15 @@ def _handle(method: str, params: dict[str, Any]) -> Any:
         if "type" not in params:
             raise ValueError("Missing required param: type")
         return build_view(index, params["type"], params.get("focus"), int(params.get("depth", 3)))
+    if method == "view_text":
+        if "type" not in params:
+            raise ValueError("Missing required param: type")
+        view = build_view(index, params["type"], params.get("focus"), int(params.get("depth", 3)))
+        return {"text": render_text(view)}
     if method == "health":
-        return index.health()
+        health = index.health()
+        health["official_adapter"] = OfficialPilotAdapter().capabilities()
+        return health
     if method == "shutdown":
         return {"ok": True, "shutdown": True}
     raise LookupError(f"Unknown method: {method}")
@@ -61,6 +90,7 @@ def main() -> int:
     for line in sys.stdin:
         if not line.strip():
             continue
+        req: dict[str, Any] | None = None
         try:
             req = json.loads(line)
             method = req["method"]

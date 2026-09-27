@@ -13,6 +13,8 @@
 - Cross-file symbol/reference workflows, diagnostics, hover, completion
 - Semantic query and view projections with text/dot/svg outputs
 - Vim/Neovim workflows backed by the CLI/backend
+- Adapter-aware CLI/RPC workflow with explicit official/local mode reporting
+- Conformance-oriented fixtures covering composition, requirements, imports/allocation/trace, and state transitions
 
 ## What this release does not claim
 

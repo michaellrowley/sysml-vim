@@ -9,6 +9,12 @@ endif
 if !exists('g:sysml_default_view')
   let g:sysml_default_view = 'composition'
 endif
+if !exists('g:sysml_use_rpc')
+  let g:sysml_use_rpc = 1
+endif
+if !exists('g:sysml_rpc_cmd')
+  let g:sysml_rpc_cmd = 'sysml-rpc'
+endif
 
 command! -nargs=? SysmlCheck call sysml#check(<f-args>)
 command! -nargs=? SysmlCheckWorkspace call sysml#check_workspace(<f-args>)

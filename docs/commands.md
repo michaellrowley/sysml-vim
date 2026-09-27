@@ -2,16 +2,17 @@
 
 ## CLI
 
-- `sysml check [path]`
-- `sysml symbols [path] [--query Q]`
-- `sysml definition NAME [--path P]`
-- `sysml references NAME [--path P]`
-- `sysml hover NAME [--path P]`
-- `sysml completion PREFIX [--path P]`
-- `sysml query KIND [--name N] [--path P]`
-- `sysml tree [path]`
-- `sysml view TYPE [--focus E] [--depth N] [--path P] [--format text|dot|svg|json]`
+- `sysml check [path] [--official]`
+- `sysml symbols [path] [--query Q] [--official]`
+- `sysml definition NAME [--path P] [--official]`
+- `sysml references NAME [--path P] [--official]`
+- `sysml hover NAME [--path P] [--official]`
+- `sysml completion PREFIX [--path P] [--official]`
+- `sysml query KIND [--name N] [--path P] [--official]`
+- `sysml tree [path] [--official]`
+- `sysml view TYPE [--focus E] [--depth N] [--path P] [--format text|dot|svg|json] [--official]`
 - `sysml health [--path P]`
+- `sysml official-status`
 - `sysml adapter OP [--path P] [--payload JSON]`
 
 ## Vim commands
