@@ -53,6 +53,9 @@ def _index_for(
 
 
 def _handle(method: str, params: dict[str, Any]) -> Any:
+    if method == "shutdown":
+        return {"ok": True, "shutdown": True}
+
     path = str(Path(params.get("path", ".")).resolve())
 
     if method == "parser_status":
@@ -103,8 +106,6 @@ def _handle(method: str, params: dict[str, Any]) -> Any:
         view_type = params.get("type", "composition")
         view = build_view(index, view_type, params.get("focus"), int(params.get("depth", 4)))
         return {"graph": render_graph(view, params.get("focus"), int(params.get("depth", 4)))}
-    if method == "shutdown":
-        return {"ok": True, "shutdown": True}
     raise LookupError(f"Unknown method: {method}")
 
 

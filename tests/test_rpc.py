@@ -96,6 +96,29 @@ def test_rpc_reports_missing_parser_without_fallback():
         proc.terminate()
 
 
+def test_rpc_shutdown_does_not_require_a_parser():
+    environment = os.environ.copy()
+    environment.pop("SYSML_LSP_COMMAND", None)
+    environment["SYSML_LSP_SERVER"] = "/missing/sysml-lsp/server.js"
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "sysml_vim.rpc"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=environment,
+    )
+    try:
+        proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 32, "method": "shutdown"}) + "\n")
+        proc.stdin.flush()
+        response = json.loads(proc.stdout.readline())
+        assert response["result"] == {"ok": True, "shutdown": True}
+        assert proc.wait(timeout=5) == 0
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+
+
 def test_rpc_view_text_and_health_report_parser_capabilities():
     proc = subprocess.Popen(
         [sys.executable, "-m", "sysml_vim.rpc"],
