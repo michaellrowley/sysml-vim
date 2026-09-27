@@ -1,0 +1,65 @@
+*sysml-vim.txt*  SysML v2/KerML support for Vim and Neovim
+
+Author: Michael Rowley
+License: MIT
+
+==============================================================================
+INTRODUCTION                                                *sysml-vim-intro*
+
+sysml-vim provides a Vim/Neovim frontend for the bundled `sysml` backend CLI.
+
+==============================================================================
+COMMANDS                                                  *sysml-vim-commands*
+
+:SysmlCheck [path]            Run parser/reference diagnostics.
+:SysmlCheckWorkspace [path]   Validate workspace (default: cwd).
+:SysmlTree [path]             Open model structure tree buffer.
+:SysmlView [type] [focus]     Open semantic text view.
+:SysmlFind [kind] [name]      Populate quickfix with semantic query.
+:SysmlDefinition [name]       Jump to definition (default: <cword>).
+:SysmlReferences [name]       Quickfix references (default: <cword>).
+:SysmlHover [name]            Show hover/details buffer.
+:SysmlRelationships [name]    Open dependency-centric view.
+:SysmlRequirements [name]     Open requirements-centric view.
+:SysmlTraceability [name]     Open traceability-centric view.
+:SysmlHealth                  Show backend health and capabilities.
+:SysmlLog                     Show plugin/backend log messages.
+
+==============================================================================
+MAPPINGS                                                *sysml-vim-mappings*
+
+<Plug>(sysml-definition)
+<Plug>(sysml-references)
+<Plug>(sysml-hover)
+<Plug>(sysml-next-diagnostic)
+<Plug>(sysml-prev-diagnostic)
+
+Default mappings (if free):
+  gd  -> definition
+  gr  -> references
+  K   -> hover
+
+==============================================================================
+CONFIGURATION                                        *sysml-vim-configuration*
+
+let g:sysml_backend_cmd = 'sysml'
+let g:sysml_default_view = 'composition'
+
+==============================================================================
+VIEWS                                                        *sysml-vim-views*
+
+Supported view types:
+  package, tree, composition, connections, requirements,
+  traceability, dependencies, behavior, state
+
+Use `:SysmlView {type}` or `sysml view {type}`.
+
+==============================================================================
+LIMITATIONS                                            *sysml-vim-limitations*
+
+The built-in parser is a transparent local subset parser for offline use.
+For authoritative semantics, configure SYSML_PILOT_COMMAND to an external
+adapter that invokes official SysML v2 pilot tooling.
+
+==============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:

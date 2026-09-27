@@ -1,0 +1,180 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import sys
+from typing import Any
+
+from .adapter import OfficialPilotAdapter
+from .render import build_view, render_dot, render_svg, render_text
+from .workspace import WorkspaceIndex
+
+
+def _json_out(data: Any) -> None:
+    print(json.dumps(data, indent=2, sort_keys=True))
+
+
+def _load_index(path: str) -> WorkspaceIndex:
+    root = Path(path).resolve()
+    index = WorkspaceIndex(root)
+    index.refresh()
+    return index
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    diagnostics = index.diagnostics()
+    _json_out({"workspace": str(index.root), "diagnostics": diagnostics})
+    return 1 if any(d["severity"] == "error" for d in diagnostics) else 0
+
+
+def cmd_symbols(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    _json_out(index.symbols(args.query))
+    return 0
+
+
+def cmd_definition(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    definition = index.definition(args.name)
+    _json_out(definition or {})
+    return 0 if definition else 2
+
+
+def cmd_references(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    _json_out(index.references(args.name))
+    return 0
+
+
+def cmd_hover(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    _json_out(index.hover(args.name) or {})
+    return 0
+
+
+def cmd_completion(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    _json_out(index.completion(args.prefix))
+    return 0
+
+
+def cmd_query(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    _json_out(index.query(args.kind, args.name))
+    return 0
+
+
+def cmd_tree(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    _json_out(index.tree())
+    return 0
+
+
+def cmd_view(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    view = build_view(index, args.type, args.focus, args.depth)
+    if args.format == "json":
+        _json_out(view)
+    elif args.format == "text":
+        print(render_text(view))
+    elif args.format == "dot":
+        print(render_dot(view))
+    elif args.format == "svg":
+        print(render_svg(view))
+    return 0
+
+
+def cmd_health(args: argparse.Namespace) -> int:
+    index = _load_index(args.path)
+    adapter = OfficialPilotAdapter()
+    health = index.health()
+    health["official_adapter"] = {
+        "configured": adapter.available(),
+        "env_var": "SYSML_PILOT_COMMAND",
+        "notes": "Set SYSML_PILOT_COMMAND to invoke official pilot tooling adapter when available",
+    }
+    _json_out(health)
+    return 0
+
+
+def cmd_adapter(args: argparse.Namespace) -> int:
+    adapter = OfficialPilotAdapter()
+    payload = json.loads(args.payload) if args.payload else {}
+    result = adapter.invoke(args.operation, Path(args.path), payload)
+    _json_out(result)
+    return 0 if result.get("ok") else 2
+
+
+def parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="sysml", description="SysML v2/KerML backend CLI")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    check = sub.add_parser("check", help="validate model files")
+    check.add_argument("path", nargs="?", default=".")
+    check.set_defaults(func=cmd_check)
+
+    symbols = sub.add_parser("symbols", help="list symbols")
+    symbols.add_argument("path", nargs="?", default=".")
+    symbols.add_argument("--query")
+    symbols.set_defaults(func=cmd_symbols)
+
+    definition = sub.add_parser("definition", help="find first definition")
+    definition.add_argument("name")
+    definition.add_argument("--path", default=".")
+    definition.set_defaults(func=cmd_definition)
+
+    refs = sub.add_parser("references", help="find references")
+    refs.add_argument("name")
+    refs.add_argument("--path", default=".")
+    refs.set_defaults(func=cmd_references)
+
+    hover = sub.add_parser("hover", help="hover info")
+    hover.add_argument("name")
+    hover.add_argument("--path", default=".")
+    hover.set_defaults(func=cmd_hover)
+
+    comp = sub.add_parser("completion", help="completion items")
+    comp.add_argument("prefix")
+    comp.add_argument("--path", default=".")
+    comp.set_defaults(func=cmd_completion)
+
+    query = sub.add_parser("query", help="semantic query")
+    query.add_argument("kind")
+    query.add_argument("--name")
+    query.add_argument("--path", default=".")
+    query.set_defaults(func=cmd_query)
+
+    tree = sub.add_parser("tree", help="workspace structural tree")
+    tree.add_argument("path", nargs="?", default=".")
+    tree.set_defaults(func=cmd_tree)
+
+    view = sub.add_parser("view", help="render semantic views")
+    view.add_argument("type", choices=["package", "composition", "connections", "requirements", "traceability", "dependencies", "behavior", "state", "tree"])
+    view.add_argument("--focus")
+    view.add_argument("--depth", type=int, default=3)
+    view.add_argument("--path", default=".")
+    view.add_argument("--format", choices=["text", "dot", "svg", "json"], default="text")
+    view.set_defaults(func=cmd_view)
+
+    health = sub.add_parser("health", help="backend health report")
+    health.add_argument("--path", default=".")
+    health.set_defaults(func=cmd_health)
+
+    adapter = sub.add_parser("adapter", help="invoke official adapter")
+    adapter.add_argument("operation")
+    adapter.add_argument("--path", default=".")
+    adapter.add_argument("--payload")
+    adapter.set_defaults(func=cmd_adapter)
+
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parser().parse_args(argv)
+    return int(args.func(args))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
