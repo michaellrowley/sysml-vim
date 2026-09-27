@@ -63,6 +63,17 @@ def test_adapter_reports_lsp_configuration(monkeypatch):
     assert "not Pilot-equivalent" in capabilities["validation_scope"]
 
 
+def test_adapter_normalizes_multiline_lsp_ranges():
+    converted_range = SysMLLspAdapter._convert_lsp_range(
+        {
+            "start": {"line": 1, "character": 8},
+            "end": {"line": 2, "character": 1},
+        }
+    )
+
+    assert converted_range == {"line": 2, "col": 8, "end_col": 8}
+
+
 @pytest.mark.parametrize(
     ("reported_version", "configured"),
     [("v18.20.0", False), ("v20.0.0", True)],

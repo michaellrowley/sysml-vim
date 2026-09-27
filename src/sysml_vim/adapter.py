@@ -774,6 +774,11 @@ class SysMLLspAdapter:
             or end_column < 0
         ):
             raise ParserBackendError("language server returned an invalid source range")
+        if end_line == start_line and end_column < start_column:
+            raise ParserBackendError("language server returned an invalid source range")
+        if end_line > start_line:
+            # The index stores single-line ranges, so project multiline ranges onto their start line.
+            end_column = max(start_column, end_column)
         return {
             "line": start_line + 1,
             "col": start_column,
