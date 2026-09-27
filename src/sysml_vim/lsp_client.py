@@ -191,7 +191,7 @@ class LanguageServerClient:
 
     def _wait_for_diagnostics(self, document_uris: set[str]) -> None:
         missing_uris = document_uris - self._diagnostic_notifications
-        deadline = time.monotonic() + min(self.timeout, 30.0)
+        deadline = time.monotonic() + self.timeout
         while missing_uris:
             remaining_time = deadline - time.monotonic()
             if remaining_time <= 0:

@@ -28,3 +28,21 @@ def test_client_reaps_server_when_initialization_times_out(tmp_path):
     server_process_id = int(pid_file.read_text(encoding="utf-8"))
     with pytest.raises(ProcessLookupError):
         os.kill(server_process_id, 0)
+
+
+def test_diagnostic_wait_uses_the_configured_client_timeout(monkeypatch):
+    client = object.__new__(LanguageServerClient)
+    client.timeout = 120.0
+    client._diagnostic_notifications = set()
+    observed_timeouts = []
+
+    def stop_after_recording_timeout(remaining_timeout):
+        observed_timeouts.append(remaining_timeout)
+        raise RuntimeError("stop after checking the timeout")
+
+    monkeypatch.setattr(client, "_consume_message", stop_after_recording_timeout)
+
+    with pytest.raises(RuntimeError, match="stop after checking"):
+        client._wait_for_diagnostics({"file:///missing.sysml"})
+
+    assert observed_timeouts[0] > 100
