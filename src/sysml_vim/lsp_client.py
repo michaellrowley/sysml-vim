@@ -40,10 +40,21 @@ class LanguageServerClient:
         self._documents: dict[str, tuple[int, str]] = {}
         self._next_request_id = 0
         self._closed = False
+        self._reader_threads = [
+            threading.Thread(target=self._read_messages, daemon=True),
+            threading.Thread(target=self._read_stderr, daemon=True),
+        ]
 
-        threading.Thread(target=self._read_messages, daemon=True).start()
-        threading.Thread(target=self._read_stderr, daemon=True).start()
-        self._initialize()
+        try:
+            for reader_thread in self._reader_threads:
+                reader_thread.start()
+            self._initialize()
+        except BaseException:
+            self._terminate_process()
+            for reader_thread in self._reader_threads:
+                if reader_thread.ident is not None:
+                    reader_thread.join(timeout=1)
+            raise
 
     def _initialize(self) -> None:
         workspace_uri = self.workspace.as_uri()
@@ -362,6 +373,26 @@ class LanguageServerClient:
             details += f": {stderr_tail}"
         return LanguageServerError("SysML language server exited" + details)
 
+    def _terminate_process(self) -> None:
+        if self.process.poll() is None:
+            try:
+                self.process.terminate()
+            except ProcessLookupError:
+                pass
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                try:
+                    self.process.kill()
+                except ProcessLookupError:
+                    pass
+                self.process.wait(timeout=5)
+        else:
+            self.process.wait()
+        for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
+            if stream is not None and not stream.closed:
+                stream.close()
+
     def close(self) -> None:
         if self._closed:
             return
@@ -378,5 +409,5 @@ class LanguageServerClient:
                 self.process.kill()
                 self.process.wait(timeout=5)
         for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
-            if stream is not None:
+            if stream is not None and not stream.closed:
                 stream.close()
