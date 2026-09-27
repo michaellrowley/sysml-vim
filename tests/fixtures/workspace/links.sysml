@@ -1,9 +1,9 @@
 package LinkPkg {
-  import VehiclePkg::Vehicle;
+  private import VehiclePkg::Vehicle;
 
   part def Fleet {
     part lead: Vehicle;
-    allocate Vehicle;
-    trace Vehicle;
+    allocate lead to Vehicle;
+    dependency from Fleet to Vehicle;
   }
 }

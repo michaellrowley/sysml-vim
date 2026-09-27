@@ -8,7 +8,8 @@ from .workspace import WorkspaceIndex
 
 
 def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, depth: int = 3) -> dict[str, Any]:
-    symbols = index.symbols()
+    all_symbols = index.symbols()
+    symbols = all_symbols
     refs = [r for refs in index.references_by_name.values() for r in refs]
 
     if focus:
@@ -22,12 +23,12 @@ def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, 
         focus_names = {s["name"] for s in symbols}
         containment_edges = [
             {"source": s["container"], "target": s["name"], "relation": "contains"}
-            for s in symbols
+            for s in all_symbols
             if s.get("container")
         ]
         for ref in refs:
             source = ref.source or Path(ref.file).stem
-            if ref.relation and (not focus or source in focus_names or ref.name in focus_names):
+            if ref.relation:
                 edges.append({"source": source, "target": ref.name, "relation": ref.relation})
         if view_type == "composition":
             edges = [e for e in edges if e["relation"] in {"typed_by", "type"}] + containment_edges
@@ -38,7 +39,49 @@ def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, 
         elif view_type in {"behavior", "state"}:
             edges = [e for e in edges if e["relation"] in {"transition", "specializes"}]
         elif view_type == "dependencies":
-            edges = [e for e in edges if e["relation"] in {"import", "type", "typed_by", "allocate"}]
+            edges = [
+                edge
+                for edge in edges
+                if edge["relation"]
+                in {"import", "type", "typed_by", "allocate", "dependency"}
+            ]
+        if focus:
+            visible_names = set(focus_names)
+            selected_edges: list[dict[str, Any]] = []
+            selected_edge_keys: set[tuple[str, str, str]] = set()
+
+            def include_edge(edge: dict[str, Any]) -> None:
+                edge_key = (edge["source"], edge["target"], edge["relation"])
+                if edge_key not in selected_edge_keys:
+                    selected_edge_keys.add(edge_key)
+                    selected_edges.append(edge)
+                visible_names.update((edge["source"], edge["target"]))
+
+            # Keep edges touching the focus, then follow outgoing links up to the requested depth.
+            for edge in edges:
+                if edge["source"] in focus_names or edge["target"] in focus_names:
+                    include_edge(edge)
+
+            frontier = set(focus_names)
+            expanded_names: set[str] = set()
+            remaining_depth = max(0, depth)
+            while frontier and remaining_depth:
+                next_frontier: set[str] = set()
+                for edge in edges:
+                    if edge["source"] in frontier:
+                        include_edge(edge)
+                        if edge["target"] not in expanded_names:
+                            next_frontier.add(edge["target"])
+                expanded_names.update(frontier)
+                frontier = next_frontier
+                remaining_depth -= 1
+
+            edges = selected_edges
+            symbols = [
+                symbol
+                for symbol in all_symbols
+                if symbol["name"] in visible_names
+            ]
         if depth > 0:
             edges = edges[: depth * 200]
         return {"type": view_type, "nodes": symbols, "edges": edges}

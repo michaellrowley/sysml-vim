@@ -15,12 +15,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .[dev]
           sudo apt-get update
           sudo apt-get install -y vim neovim graphviz
+      - name: Install SysML language server
+        run: |
+          npm install \
+            --prefix "$HOME/.local/share/sysml-vim/lsp" \
+            --no-save \
+            --no-package-lock \
+            --ignore-scripts \
+            sysml-v2-lsp@0.31.0
+          echo "SYSML_LSP_SERVER=$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js" >> "$GITHUB_ENV"
       - name: Run backend tests
         run: pytest -q
       - name: CLI smoke checks
@@ -31,5 +43,9 @@ jobs:
           sysml view composition --path tests/fixtures/workspace --format svg > /tmp/view.svg
       - name: Vim smoke test
         run: vim -Nu NONE -n -es -S tests/vim_smoke.vim
+      - name: Vim language server smoke test
+        run: vim -Nu NONE -n -es -S tests/vim_lsp_smoke.vim
+      - name: Vim view refresh smoke test
+        run: vim -Nu NONE -n -es -S tests/vim_view_smoke.vim
       - name: Neovim smoke test
         run: nvim --headless -u NONE -c "set rtp+=." -c "source plugin/sysml.vim" -c "if !exists(':SysmlCheck') | cquit 1 | endif" -c "qa"

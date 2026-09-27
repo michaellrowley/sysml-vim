@@ -47,7 +47,7 @@ let g:sysml_backend_cmd = 'sysml'
 let g:sysml_default_view = 'composition'
 let g:sysml_use_rpc = 1
 let g:sysml_rpc_cmd = 'sysml-rpc'
-let g:sysml_rpc_timeout_ms = 4000
+let g:sysml_rpc_timeout_ms = 120000
 
 ==============================================================================
 VIEWS                                                        *sysml-vim-views*
@@ -57,13 +57,28 @@ Supported view types:
   traceability, dependencies, behavior, state
 
 Use `:SysmlView {type}` or `sysml view {type}`.
+Tree, graph, and semantic views open in a dedicated tab, leaving the source tab
+available. Open views refresh after edits to loaded SysML/KerML buffers in the
+same workspace, including unsaved text sent over the RPC backend.
+:SysmlGraph without a focus argument shows the whole workspace; provide an
+element name to limit the graph.
+
+SysML folds are open by default. Adjust `foldlevel` in your ftplugin if you
+prefer collapsed folds.
 
 ==============================================================================
 LIMITATIONS                                            *sysml-vim-limitations*
 
-The built-in parser is a transparent local subset parser for offline use.
-For authoritative semantics, configure SYSML_PILOT_COMMAND (argv mode) or
-SYSML_PILOT_RPC_COMMAND (JSON-RPC mode) to invoke official tooling adapters.
+Model commands require Node.js 20+ and the third-party sysml-v2-lsp package.
+Set SYSML_LSP_SERVER to its dist/server/server.js entry point in Vim's launch
+environment. The installer places the package under
+~/.local/share/sysml-vim/lsp and configures this variable. See
+docs/lsp-parser.md for full setup.
+
+The ANTLR grammar is derived from OMG textual KEBNF by a community project.
+The LSP project's semantic checks are not the official Pilot validator and
+are not a claim of complete SysML/KerML conformance. The index and views expose
+selected model projections, not a complete semantic API.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:

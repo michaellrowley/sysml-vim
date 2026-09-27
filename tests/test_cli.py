@@ -72,7 +72,6 @@ def test_cli_svg_view_branch_with_mock(monkeypatch, capsys):
         depth=1,
         path="tests/fixtures/workspace",
         format="svg",
-        official=False,
     )
     rc = cli.cmd_view(args)
     captured = capsys.readouterr()
@@ -80,16 +79,27 @@ def test_cli_svg_view_branch_with_mock(monkeypatch, capsys):
     assert "<svg>ok</svg>" in captured.out
 
 
-def test_cli_official_status_and_rpc_official_mode():
-    code, out = run_cmd(["official-status"])
+def test_cli_reports_parser_status_and_uses_it_for_navigation():
+    code, out = run_cmd(["parser-status"])
     status = json.loads(out)
+    assert code == 0
     assert "mode" in status
+    assert status["expected_parser"] == "SysML v2 Language Server (ANTLR)"
+    assert status["response_validated"] is False
 
-    code2, out2 = run_cmd(
-        ["definition", "Vehicle", "--path", "tests/fixtures/workspace", "--official"],
-        env={"SYSML_PILOT_RPC_COMMAND": f"{sys.executable} -m sysml_vim.rpc"},
-    )
+    code2, out2 = run_cmd(["definition", "Vehicle", "--path", "tests/fixtures/workspace"])
     payload = json.loads(out2)
     assert code2 == 0
-    assert payload["mode"] == "official"
-    assert payload["result"]["name"] == "Vehicle"
+    assert payload["name"] == "Vehicle"
+
+
+def test_cli_reports_missing_parser_instead_of_using_a_subset(monkeypatch, capsys):
+    monkeypatch.delenv("SYSML_LSP_COMMAND", raising=False)
+    monkeypatch.setenv("SYSML_LSP_SERVER", "/missing/sysml-lsp/server.js")
+
+    exit_code = cli.main(["check", "tests/fixtures/workspace"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert captured.out == ""
+    assert "No local subset parser or fallback" in captured.err

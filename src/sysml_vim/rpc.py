@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from .adapter import OfficialPilotAdapter
+from .adapter import ParserBackendError, SysMLLspAdapter
 from .render import build_view, render_graph, render_text
 from .workspace import WorkspaceIndex
 
@@ -20,29 +20,54 @@ def _error(id_value: Any, code: int, message: str) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": id_value, "error": {"code": code, "message": message}}
 
 
-def _index_for(path_value: str, force_refresh: bool = True) -> WorkspaceIndex:
+def _document_overrides(params: dict[str, Any]) -> dict[str, str]:
+    document_records = params.get("documents", [])
+    if not isinstance(document_records, list):
+        raise ValueError("documents must be a list of path/text objects")
+
+    document_overrides: dict[str, str] = {}
+    for document_record in document_records:
+        if not isinstance(document_record, dict):
+            raise ValueError("each document override must be an object")
+        document_path = document_record.get("path")
+        document_text = document_record.get("text")
+        if not isinstance(document_path, str) or not isinstance(document_text, str):
+            raise ValueError("each document override requires string path and text fields")
+        resolved_path = str(Path(document_path).expanduser().resolve())
+        document_overrides[resolved_path] = document_text
+    return document_overrides
+
+
+def _index_for(
+    path_value: str,
+    force_refresh: bool = False,
+    document_overrides: dict[str, str] | None = None,
+) -> WorkspaceIndex:
     path = str(Path(path_value).resolve())
     if path not in _INDEX_CACHE:
         _INDEX_CACHE[path] = WorkspaceIndex(Path(path))
     index = _INDEX_CACHE[path]
-    if force_refresh:
-        index.refresh()
+    if force_refresh or not index.is_current(document_overrides):
+        index.refresh(document_overrides)
     return index
 
 
 def _handle(method: str, params: dict[str, Any]) -> Any:
+    if method == "shutdown":
+        return {"ok": True, "shutdown": True}
+
     path = str(Path(params.get("path", ".")).resolve())
 
-    if method == "official_status":
-        return OfficialPilotAdapter().capabilities()
-    if method == "official":
-        if "operation" not in params:
-            raise ValueError("Missing required param: operation")
-        adapter = OfficialPilotAdapter()
-        payload = params.get("payload", {})
-        return adapter.invoke(params["operation"], Path(path), payload)
+    if method == "parser_status":
+        return SysMLLspAdapter().capabilities()
+    if method == "health":
+        return WorkspaceIndex(Path(path)).health()
 
-    index = _index_for(path, force_refresh=bool(params.get("refresh", True)))
+    index = _index_for(
+        path,
+        force_refresh=bool(params.get("refresh", False)),
+        document_overrides=_document_overrides(params),
+    )
 
     if method == "check":
         return {"workspace": str(index.root), "diagnostics": index.diagnostics()}
@@ -81,12 +106,6 @@ def _handle(method: str, params: dict[str, Any]) -> Any:
         view_type = params.get("type", "composition")
         view = build_view(index, view_type, params.get("focus"), int(params.get("depth", 4)))
         return {"graph": render_graph(view, params.get("focus"), int(params.get("depth", 4)))}
-    if method == "health":
-        health = index.health()
-        health["official_adapter"] = OfficialPilotAdapter().capabilities()
-        return health
-    if method == "shutdown":
-        return {"ok": True, "shutdown": True}
     raise LookupError(f"Unknown method: {method}")
 
 
@@ -103,6 +122,7 @@ def main() -> int:
             sys.stdout.write(json.dumps(resp) + "\n")
             sys.stdout.flush()
             if method == "shutdown":
+                _close_workspace_indexes()
                 return 0
         except LookupError as exc:
             sys.stdout.write(json.dumps(_error(req.get("id") if isinstance(req, dict) else None, -32601, str(exc))) + "\n")
@@ -110,10 +130,19 @@ def main() -> int:
         except ValueError as exc:
             sys.stdout.write(json.dumps(_error(req.get("id") if isinstance(req, dict) else None, -32602, str(exc))) + "\n")
             sys.stdout.flush()
+        except ParserBackendError as exc:
+            sys.stdout.write(json.dumps(_error(req.get("id") if isinstance(req, dict) else None, -32001, str(exc))) + "\n")
+            sys.stdout.flush()
         except Exception as exc:  # noqa: BLE001
             sys.stdout.write(json.dumps(_error(req.get("id") if isinstance(req, dict) else None, -32603, str(exc))) + "\n")
             sys.stdout.flush()
     return 0
+
+
+def _close_workspace_indexes() -> None:
+    for workspace_index in _INDEX_CACHE.values():
+        workspace_index.parser_adapter.close()
+    _INDEX_CACHE.clear()
 
 
 if __name__ == "__main__":

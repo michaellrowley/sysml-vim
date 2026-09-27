@@ -2,6 +2,7 @@ setlocal commentstring=//\ %s
 setlocal omnifunc=sysml#complete
 setlocal foldmethod=expr
 setlocal foldexpr=SysmlFoldLevel(v:lnum)
+setlocal foldlevel=99
 
 function! SysmlFoldLevel(lnum) abort
   let level = 0

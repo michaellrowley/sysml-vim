@@ -32,6 +32,11 @@ command! -nargs=0 SysmlHealth call sysml#health()
 command! -nargs=0 SysmlLog call sysml#log()
 command! -nargs=0 SysmlRestart call sysml#restart()
 
+augroup sysml_view_sync
+  autocmd!
+  autocmd TextChanged,TextChangedI,BufWritePost *.sysml,*.kerml call sysml#_schedule_view_refresh(bufnr('%'))
+augroup END
+
 nnoremap <silent> <Plug>(sysml-definition) :SysmlDefinition<CR>
 nnoremap <silent> <Plug>(sysml-references) :SysmlReferences<CR>
 nnoremap <silent> <Plug>(sysml-hover) :SysmlHover<CR>

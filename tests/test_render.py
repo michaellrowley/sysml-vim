@@ -22,3 +22,17 @@ def test_render_graph_hierarchy():
     assert "View Graph: composition (ELK-style layered blocks)" in graph
     assert "Vehicle:part_def" in graph
     assert "- Vehicle -[contains]-> engine" in graph or "- Vehicle -[contains]-> wheel" in graph
+    assert "- engine -[typed_by]-> Engine" in graph
+
+
+def test_dependency_view_includes_dependency_relationships():
+    index = WorkspaceIndex(Path("tests/fixtures/workspace"))
+    index.refresh()
+
+    view = build_view(index, "dependencies")
+
+    assert {
+        "source": "Fleet",
+        "target": "Vehicle",
+        "relation": "dependency",
+    } in view["edges"]

@@ -5,25 +5,22 @@
 - OMG KerML 1.0, SysML 2.0, Systems Modeling API/Services 1.0 (formally adopted; release docs updated 2026-08)
 - Upstream refs used:
   - SysML-v2-Release `fb97b754f29588b8e9c7a35f370880cd15eb29e7`
-  - SysML-v2-Pilot-Implementation `5cca16d846016e62bb1e54e0e50e675254a022ef` (0.63.0)
+  - `daltskin/sysml-v2-grammar` `14b0d7a26d369a0096ac8b5db4d90685e1498b47`
+  - `daltskin/sysml-v2-lsp` `2cb64aaf43c05f0921f4fa4c640d69b44d189e13` (npm `0.31.0`)
 
-## What this release implements
+## Parser integration
 
-- Useful offline structural parsing/indexing for `.sysml`/`.kerml`
-- Cross-file symbol/reference workflows, diagnostics, hover, completion
+- ANTLR syntax parser generated from OMG textual KEBNF by a third-party grammar project
+- LSP syntax diagnostics, custom semantic checks, cross-file symbol/reference workflows, and selected model projections
 - Semantic query and view projections with text/dot/svg outputs
-- Vim/Neovim workflows backed by the CLI/backend
-- Adapter-aware CLI/RPC workflow with explicit official/local mode reporting
-- Conformance-oriented fixtures covering composition, requirements, imports/allocation/trace, and state transitions
+- Vim/Neovim workflows backed by the parser-dependent CLI/backend
+- Tests include canned LSP protocol coverage and an optional integration test against the pinned npm package
 
-## What this release does not claim
+## Scope and limitations
 
-- Full grammar-derived parse and complete SysML/KerML semantic conformance
+- The ANTLR grammar is a community translation of OMG KEBNF with downstream patches; grammar translation and parser tests do not certify complete normative syntax coverage
+- Semantic diagnostics are implemented by the LSP project and are not equivalent to the Pilot's validation rules
 - Complete Systems Modeling API workflow implementation
 - Full official graphical notation conformance
-
-## Official tooling integration status
-
-- Implemented adapter boundary for external pilot tooling (`SYSML_PILOT_COMMAND`)
-- In this repository, official pilot implementation is **not bundled**
-- Capability reporting is explicit via `sysml health`
+- A complete model semantic API: indexing and views expose selected LSP model projections only
+- Any local parsing or validation fallback when the language server is missing or fails
