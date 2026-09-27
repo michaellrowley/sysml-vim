@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import subprocess
 import threading
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -87,6 +88,33 @@ class SysMLLspAdapter:
         node_executable = shutil.which(node_arguments[0])
         if node_executable is None:
             raise ParserBackendError("Node.js 20 or newer was not found on PATH")
+        try:
+            node_version = subprocess.run(
+                [node_executable, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise ParserBackendError(
+                f"could not check the Node.js runtime version: {error}"
+            ) from error
+        if node_version.returncode != 0:
+            version_error = node_version.stderr.strip() or "version command failed"
+            raise ParserBackendError(
+                f"could not check the Node.js runtime version: {version_error}"
+            )
+        version_text = node_version.stdout.strip()
+        major_version_text = version_text.removeprefix("v").split(".", 1)[0]
+        if not major_version_text.isdigit():
+            raise ParserBackendError(
+                f"could not determine the Node.js major version from {version_text!r}"
+            )
+        if int(major_version_text) < 20:
+            raise ParserBackendError(
+                f"Node.js 20 or newer is required; found {version_text}"
+            )
         node_arguments[0] = node_executable
         return [*node_arguments, str(self.server_path), "--stdio"]
 

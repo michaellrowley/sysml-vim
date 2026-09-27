@@ -1,9 +1,11 @@
 from pathlib import Path
 import shlex
 import sys
+from types import SimpleNamespace
 
 import pytest
 
+import sysml_vim.adapter as adapter_module
 from sysml_vim.adapter import ParserBackendError, SysMLLspAdapter
 
 
@@ -59,3 +61,31 @@ def test_adapter_reports_lsp_configuration(monkeypatch):
     assert capabilities["mode"] == "custom-command"
     assert capabilities["expected_parser"] == "SysML v2 Language Server (ANTLR)"
     assert "not Pilot-equivalent" in capabilities["validation_scope"]
+
+
+@pytest.mark.parametrize(
+    ("reported_version", "configured"),
+    [("v18.20.0", False), ("v20.0.0", True)],
+)
+def test_adapter_checks_node_major_version(
+    monkeypatch, tmp_path, reported_version, configured
+):
+    server_path = tmp_path / "server.js"
+    server_path.write_text("", encoding="utf-8")
+    monkeypatch.setenv("SYSML_LSP_SERVER", str(server_path))
+    monkeypatch.delenv("SYSML_LSP_COMMAND", raising=False)
+    monkeypatch.delenv("SYSML_NODE_COMMAND", raising=False)
+    monkeypatch.setattr(adapter_module.shutil, "which", lambda _: "/usr/bin/node")
+    monkeypatch.setattr(
+        adapter_module.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0,
+            stdout=reported_version,
+            stderr="",
+        ),
+    )
+
+    capabilities = SysMLLspAdapter().capabilities()
+
+    assert capabilities["configured"] is configured
