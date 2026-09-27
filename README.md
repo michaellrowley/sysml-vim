@@ -12,9 +12,9 @@ The screenshots below were generated from the included example model at `/home/r
 
 ![Vim editing a SysML model](docs/images/vim-editing.png)
 
-### Semantic composition view output in Vim
+### Block node/edge model graph in Vim (`:SysmlGraph Vehicle`)
 
-![Vim showing semantic composition view output](docs/images/vim-view.png)
+![Vim showing block-based ELK-style graph view](docs/images/vim-block-graph.png)
 
 ## Status and conformance stance
 
