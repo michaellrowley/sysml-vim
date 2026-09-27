@@ -1,18 +1,20 @@
 set nocompatible
-set runtimepath^=.
+let s:repository_root = getcwd()
+execute 'set runtimepath^=' . fnameescape(s:repository_root)
 filetype plugin on
 source plugin/sysml.vim
 
-let $PYTHONPATH = getcwd() . '/src' . (empty($PYTHONPATH) ? '' : ':' . $PYTHONPATH)
-let $SYSML_LSP_COMMAND = 'python3 ' . shellescape(getcwd() . '/tests/fixtures/mock_lsp_server.py')
+let $PYTHONPATH = s:repository_root . '/src' . (empty($PYTHONPATH) ? '' : ':' . $PYTHONPATH)
+let $SYSML_LSP_COMMAND = 'python3 ' . shellescape(s:repository_root . '/tests/fixtures/mock_lsp_server.py')
 let $SYSML_LSP_SERVER = ''
 let g:sysml_rpc_cmd = exepath('sysml-rpc')
 let g:sysml_rpc_timeout_ms = 10000
 let g:sysml_view_refresh_delay_ms = 100
-let s:source_file = getcwd() . '/tests/fixtures/workspace/vehicle.sysml'
-let s:workspace = fnamemodify(s:source_file, ':h')
+let s:workspace = s:repository_root . '/tests/fixtures/workspace'
+let s:source_file = s:workspace . '/vehicle.sysml'
 
 execute 'edit ' . fnameescape(s:source_file)
+execute 'lcd ' . fnameescape(s:workspace)
 if &filetype !=# 'sysml'
   setfiletype sysml
 endif
@@ -60,10 +62,20 @@ if join(getline(1, '$'), "\n") !~# 'Vehicle:part_def'
   cquit 11
 endif
 
-let s:second_source_file = getcwd() . '/tests/fixtures/workspace/links.sysml'
+let s:workspace_b = tempname()
+call mkdir(s:workspace_b, 'p')
+let s:second_source_file = s:workspace_b . '/links.sysml'
+call writefile(
+      \ readfile(s:repository_root . '/tests/fixtures/workspace/links.sysml', 'b'),
+      \ s:second_source_file,
+      \ 'b'
+      \ )
 execute 'tabnew ' . fnameescape(s:second_source_file)
+execute 'lcd ' . fnameescape(s:workspace_b)
 let s:second_source_buffer = bufnr('%')
+call append(line('$') - 1, '  part def DraftFromWorkspaceB;')
 call sysml#tree()
+let s:second_tree_buffer = bufnr('%')
 if bufname('%') !=# 'sysml-tree-' . s:second_source_buffer || winnr('$') != 1
   cquit 9
 endif
@@ -71,4 +83,22 @@ if tabpagenr('$') != 5
   cquit 10
 endif
 
+call win_gotoid(win_findbuf(s:source_buffer)[0])
+call append(line('$') - 1, '  part def UpdateFromWorkspaceA;')
+doautocmd TextChanged
+sleep 20m
+
+call win_gotoid(win_findbuf(s:second_source_buffer)[0])
+call append(line('$') - 1, '  part def UpdateFromWorkspaceB;')
+doautocmd TextChanged
+sleep 500m
+
+if join(getbufline(s:tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceA'
+  cquit 12
+endif
+if join(getbufline(s:second_tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceB'
+  cquit 13
+endif
+
+call delete(s:workspace_b, 'rf')
 quitall!

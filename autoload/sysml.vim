@@ -3,6 +3,7 @@ let s:rpc_job = 0
 let s:rpc_seq = 0
 let s:view_sessions = {}
 let s:view_refresh_timer = -1
+let s:view_refresh_paths = {}
 
 function! s:sysml_word() abort
   return expand('<cword>')
@@ -346,6 +347,8 @@ function! sysml#_schedule_view_refresh(source_buffer) abort
   if empty(changed_path) || !s:is_model_file(changed_path)
     return
   endif
+  " A shared debounce timer must retain paths from every workspace it replaces.
+  let s:view_refresh_paths[resolve(fnamemodify(changed_path, ':p'))] = 1
   if s:view_refresh_timer >= 0
     call timer_stop(s:view_refresh_timer)
   endif
@@ -353,20 +356,18 @@ function! sysml#_schedule_view_refresh(source_buffer) abort
     let delay = get(g:, 'sysml_view_refresh_delay_ms', 500)
     let s:view_refresh_timer = timer_start(
           \ delay,
-          \ function('sysml#_refresh_views', [a:source_buffer])
+          \ function('sysml#_refresh_views')
           \ )
   else
-    call sysml#_refresh_views(a:source_buffer, -1)
+    call sysml#_refresh_views(-1)
   endif
 endfunction
 
-function! sysml#_refresh_views(source_buffer, timer_id) abort
+function! sysml#_refresh_views(timer_id) abort
+  let changed_paths = keys(s:view_refresh_paths)
+  let s:view_refresh_paths = {}
   let s:view_refresh_timer = -1
-  if !bufexists(a:source_buffer)
-    return
-  endif
-  let changed_path = bufname(a:source_buffer)
-  if empty(changed_path)
+  if empty(changed_paths)
     return
   endif
 
@@ -377,7 +378,14 @@ function! sysml#_refresh_views(source_buffer, timer_id) abort
       call remove(s:view_sessions, session_key)
       continue
     endif
-    if !s:path_is_in_workspace(changed_path, session.path)
+    let workspace_changed = 0
+    for changed_path in changed_paths
+      if s:path_is_in_workspace(changed_path, session.path)
+        let workspace_changed = 1
+        break
+      endif
+    endfor
+    if !workspace_changed
       continue
     endif
     let refreshed_view = s:view_request(session)
