@@ -8,6 +8,8 @@
 4. Run Vim/Neovim smoke checks
 5. Submit PR with test output and capability/conformance impact
 
+The default tests isolate the backend with a static parser-protocol test double. For changes to the bridge or model projection, also follow [the Pilot setup](docs/pilot-parser.md), build the official Pilot, and run `pytest -q` with `SYSML_PILOT_HOME` set so the optional end-to-end Pilot test runs.
+
 ## Standards alignment
 
 Do not claim full SysML/KerML conformance unless proven by grammar-derived tests.

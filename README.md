@@ -18,9 +18,9 @@ The screenshots below were generated from the included example model at `/home/r
 
 ## Status and conformance stance
 
-- This release is **usable and tested** for offline structural authoring/navigation workflows.
-- It does **not** claim full SysML 2.0/KerML 1.0 semantic conformance.
-- It includes an explicit adapter boundary (`SYSML_PILOT_COMMAND`) for invoking official tooling when available.
+- SysML/KerML files are parsed and validated by a configured bridge to the official SysML v2 Pilot Implementation.
+- The Python backend contains no SysML grammar, parser, or local validation fallback. Commands requiring a model index fail clearly until the Pilot bridge is configured.
+- Indexing and views expose selected model elements and relationships; they are editor conveniences, not a claim of complete SysML 2.0/KerML 1.0 semantic conformance.
 
 ## Upstream references used
 
@@ -36,14 +36,13 @@ Checked on 2026-09-27:
 
 - Workspace indexing for `.sysml` and `.kerml`
 - Symbols, references, definition, hover, completion
-- Parse + unresolved-reference diagnostics
+- Diagnostics returned by the configured Pilot parser and validator
 - Semantic queries (`sysml query`)
 - Structural tree (`sysml tree`)
 - Semantic views: package/composition/connections/requirements/traceability/dependencies/behavior/state
 - Rendering formats: text, Graphviz DOT, SVG (when `dot` is installed)
 - JSON-RPC server (`sysml-rpc`) with documented methods
-- Optional official-tooling adapter boundary via `SYSML_PILOT_COMMAND` (argv mode) or `SYSML_PILOT_RPC_COMMAND` (JSON-RPC mode)
-- Optional `--official` CLI path for operations (`check`, `definition`, `view`, etc.) with automatic local fallback
+- Official parser/validator bridge via `SYSML_PILOT_COMMAND` (argv mode) or `SYSML_PILOT_RPC_COMMAND` (JSON-RPC mode)
 
 ### Vim / Neovim plugin
 
@@ -60,10 +59,14 @@ Checked on 2026-09-27:
 
 ```bash
 python -m pip install -e .
+export SYSML_PILOT_HOME="$HOME/SysML-v2-Pilot-Implementation"
+export SYSML_PILOT_COMMAND="python3 /path/to/sysml-vim/tools/sysml-pilot-bridge/run.py"
 sysml health --path .
 sysml check tests/fixtures/workspace
 sysml view composition --path tests/fixtures/workspace --format text
 ```
+
+The repository includes a Java bridge to the Pilot's Xtext parser and validator. Build the official Pilot once, point `SYSML_PILOT_HOME` at its checkout, and configure `SYSML_PILOT_COMMAND` to the included `tools/sysml-pilot-bridge/run.py`; the launcher compiles the bridge against the Pilot's generated `*-all.jar` on its first run. See [the complete setup](docs/pilot-parser.md). Without the Pilot build or a configured bridge, model commands report an explicit error rather than using an incomplete parser.
 
 ### Install into Vim in a few commands
 
@@ -101,6 +104,7 @@ Example request line:
 - `docs/api.md`
 - `docs/architecture.md`
 - `docs/conformance.md`
+- `docs/pilot-parser.md`
 - `docs/troubleshooting.md`
 - `docs/development.md`
 - Vim help: `:help sysml-vim`

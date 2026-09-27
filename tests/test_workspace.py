@@ -11,11 +11,14 @@ def test_workspace_index_and_lookup():
     assert any(r.get("relation") == "satisfy" for r in refs)
 
 
-def test_workspace_diagnostics_include_unresolved_reference():
+def test_workspace_diagnostics_include_official_parser_errors():
     index = WorkspaceIndex(Path("tests/fixtures/workspace"))
     index.refresh()
     diagnostics = index.diagnostics()
-    assert any("Unresolved reference" in d["message"] for d in diagnostics)
+    assert any(
+        d["file"].endswith("bad.sysml") and d["severity"] == "error"
+        for d in diagnostics
+    )
 
 
 def test_workspace_import_and_behavior_references():
@@ -28,3 +31,42 @@ def test_workspace_import_and_behavior_references():
 
     state_refs = index.references("Active")
     assert any(r.get("relation") == "transition" for r in state_refs)
+
+
+def test_workspace_snapshot_detects_model_file_changes(tmp_path):
+    class CountingParser:
+        calls = 0
+
+        def parse_workspace(self, workspace, files):
+            self.calls += 1
+            return {
+                "parser": {
+                    "name": "SysML v2 Pilot Implementation (test double)",
+                    "version": "0.63.0",
+                    "standards": ["SysML 2.0", "KerML 1.0"],
+                },
+                "files": [
+                    {
+                        "path": source["path"],
+                        "symbols": [],
+                        "references": [],
+                        "diagnostics": [],
+                        "imports": [],
+                    }
+                    for source in files
+                ],
+            }
+
+    model_file = tmp_path / "model.sysml"
+    model_file.write_text("package First;")
+    parser_adapter = CountingParser()
+    index = WorkspaceIndex(model_file.parent, parser_adapter)
+
+    index.refresh()
+    assert index.is_current() is True
+    assert parser_adapter.calls == 1
+
+    model_file.write_text("package ChangedName;")
+    assert index.is_current() is False
+    index.refresh()
+    assert parser_adapter.calls == 2

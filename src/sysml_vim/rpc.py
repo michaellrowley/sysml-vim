@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from .adapter import OfficialPilotAdapter
+from .adapter import OfficialPilotAdapter, ParserBackendError
 from .render import build_view, render_graph, render_text
 from .workspace import WorkspaceIndex
 
@@ -20,12 +20,12 @@ def _error(id_value: Any, code: int, message: str) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": id_value, "error": {"code": code, "message": message}}
 
 
-def _index_for(path_value: str, force_refresh: bool = True) -> WorkspaceIndex:
+def _index_for(path_value: str, force_refresh: bool = False) -> WorkspaceIndex:
     path = str(Path(path_value).resolve())
     if path not in _INDEX_CACHE:
         _INDEX_CACHE[path] = WorkspaceIndex(Path(path))
     index = _INDEX_CACHE[path]
-    if force_refresh:
+    if force_refresh or not index.is_current():
         index.refresh()
     return index
 
@@ -41,8 +41,10 @@ def _handle(method: str, params: dict[str, Any]) -> Any:
         adapter = OfficialPilotAdapter()
         payload = params.get("payload", {})
         return adapter.invoke(params["operation"], Path(path), payload)
+    if method == "health":
+        return WorkspaceIndex(Path(path)).health()
 
-    index = _index_for(path, force_refresh=bool(params.get("refresh", True)))
+    index = _index_for(path, force_refresh=bool(params.get("refresh", False)))
 
     if method == "check":
         return {"workspace": str(index.root), "diagnostics": index.diagnostics()}
@@ -81,10 +83,6 @@ def _handle(method: str, params: dict[str, Any]) -> Any:
         view_type = params.get("type", "composition")
         view = build_view(index, view_type, params.get("focus"), int(params.get("depth", 4)))
         return {"graph": render_graph(view, params.get("focus"), int(params.get("depth", 4)))}
-    if method == "health":
-        health = index.health()
-        health["official_adapter"] = OfficialPilotAdapter().capabilities()
-        return health
     if method == "shutdown":
         return {"ok": True, "shutdown": True}
     raise LookupError(f"Unknown method: {method}")
@@ -109,6 +107,9 @@ def main() -> int:
             sys.stdout.flush()
         except ValueError as exc:
             sys.stdout.write(json.dumps(_error(req.get("id") if isinstance(req, dict) else None, -32602, str(exc))) + "\n")
+            sys.stdout.flush()
+        except ParserBackendError as exc:
+            sys.stdout.write(json.dumps(_error(req.get("id") if isinstance(req, dict) else None, -32001, str(exc))) + "\n")
             sys.stdout.flush()
         except Exception as exc:  # noqa: BLE001
             sys.stdout.write(json.dumps(_error(req.get("id") if isinstance(req, dict) else None, -32603, str(exc))) + "\n")

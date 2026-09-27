@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 
@@ -66,7 +67,35 @@ def test_rpc_missing_params_returns_invalid_params():
         proc.terminate()
 
 
-def test_rpc_view_text_and_health_include_adapter_capabilities():
+def test_rpc_reports_missing_parser_without_fallback():
+    environment = os.environ.copy()
+    environment.pop("SYSML_PILOT_COMMAND", None)
+    environment.pop("SYSML_PILOT_RPC_COMMAND", None)
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "sysml_vim.rpc"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=environment,
+    )
+    try:
+        request = {
+            "jsonrpc": "2.0",
+            "id": 31,
+            "method": "check",
+            "params": {"path": "tests/fixtures/workspace"},
+        }
+        proc.stdin.write(json.dumps(request) + "\n")
+        proc.stdin.flush()
+        response = json.loads(proc.stdout.readline())
+        assert response["error"]["code"] == -32001
+        assert "No local subset parser or fallback" in response["error"]["message"]
+    finally:
+        proc.terminate()
+
+
+def test_rpc_view_text_and_health_report_parser_capabilities():
     proc = subprocess.Popen(
         [sys.executable, "-m", "sysml_vim.rpc"],
         stdin=subprocess.PIPE,
@@ -106,6 +135,6 @@ def test_rpc_view_text_and_health_include_adapter_capabilities():
         proc.stdin.write(json.dumps(health_req) + "\n")
         proc.stdin.flush()
         health_resp = json.loads(proc.stdout.readline())
-        assert "official_adapter" in health_resp["result"]
+        assert health_resp["result"]["parser"]["configured"] is True
     finally:
         proc.terminate()

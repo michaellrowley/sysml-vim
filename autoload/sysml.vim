@@ -58,7 +58,7 @@ function! s:rpc_request(method, params) abort
   let id = s:rpc_seq
   let req = {'jsonrpc': '2.0', 'id': id, 'method': a:method, 'params': a:params}
   call ch_sendraw(chan, json_encode(req) . "\n")
-  let timeout = get(g:, 'sysml_rpc_timeout_ms', 4000)
+  let timeout = get(g:, 'sysml_rpc_timeout_ms', 120000)
   let line = ch_read(chan, {'timeout': timeout})
   if empty(line)
     call add(s:last_log, 'rpc timeout: ' . a:method)
