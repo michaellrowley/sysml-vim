@@ -2,6 +2,20 @@
 
 A usable SysML v2 / KerML backend + CLI with Vim and Neovim integration.
 
+## Intro
+
+`sysml-vim` gives you a Vim/Neovim-first workflow for SysML v2 and KerML: edit textual models, run checks, and inspect semantic views from the same environment.
+
+The screenshots below were generated from the included example model at `/home/runner/work/sysml-vim/sysml-vim/tests/fixtures/workspace/vehicle.sysml` and backend view output.
+
+### Editing a SysML model in Vim
+
+![Vim editing a SysML model](docs/images/vim-editing.png)
+
+### Semantic composition view output in Vim
+
+![Vim showing semantic composition view output](docs/images/vim-view.png)
+
 ## Status and conformance stance
 
 - This release is **usable and tested** for offline structural authoring/navigation workflows.

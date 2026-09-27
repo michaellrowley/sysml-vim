@@ -41,7 +41,7 @@ function! s:ensure_rpc_job() abort
         \ 'err_cb': {j,d -> add(s:last_log, d)}
         \ }
   let s:rpc_job = job_start(cmd, opts)
-  if s:rpc_job == 0 || s:rpc_job == -1
+  if type(s:rpc_job) == v:t_number && (s:rpc_job == 0 || s:rpc_job == -1)
     call add(s:last_log, 'failed to start rpc backend: ' . string(cmd))
     let s:rpc_job = 0
     return 0
@@ -79,7 +79,11 @@ endfunction
 
 function! s:run_sync(args) abort
   let cmd = [g:sysml_backend_cmd] + a:args
-  let output = systemlist(cmd)
+  if has('nvim')
+    let output = systemlist(cmd)
+  else
+    let output = systemlist(join(map(copy(cmd), 'shellescape(v:val)'), ' '))
+  endif
   let status = v:shell_error
   if status != 0 && empty(output)
     call add(s:last_log, 'command failed: ' . string(cmd))
