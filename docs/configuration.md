@@ -11,12 +11,12 @@
 ## Environment variables
 
 - `SYSML_PILOT_HOME`: official Pilot checkout built with `./mvnw clean install`; the included launcher locates its parser JAR and model libraries here
-- `SYSML_PILOT_COMMAND`: included launcher in argv mode; set to `python3 /path/to/sysml-vim/tools/sysml-pilot-bridge/run.py`
-- `SYSML_PILOT_RPC_COMMAND`: optional JSON-RPC transport using the same launcher (takes precedence when both command variables are set)
+- `SYSML_PILOT_COMMAND`: installed `sysml-pilot-bridge` command in argv mode
+- `SYSML_PILOT_RPC_COMMAND`: optional JSON-RPC transport using `sysml-pilot-bridge` (takes precedence when both command variables are set)
 - `SYSML_PILOT_JAR`: optional explicit path to the Pilot's `org.omg.sysml.interactive-*-all.jar`
 - `SYSML_PILOT_LIBRARY`: optional explicit path to the Pilot's `sysml.library` directory
 
-The included launcher compiles its Java bridge against the official Pilot JAR on first use and caches the class files outside the repository. See [the complete build and installation instructions](pilot-parser.md). No built-in subset parser or fallback is available.
+Install sysml-vim in the Python environment used by the backend; this also installs `sysml-pilot-bridge`. Ensure that environment's `bin`/`Scripts` directory is on `PATH` when Vim/Neovim starts. The command compiles its packaged Java bridge against the official Pilot JAR on first use and caches the class files outside the repository. See [the complete build and installation instructions](pilot-parser.md). No built-in subset parser or fallback is available.
 
 ## Health report
 

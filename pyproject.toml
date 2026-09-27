@@ -22,6 +22,7 @@ dependencies = []
 [project.scripts]
 sysml = "sysml_vim.cli:main"
 sysml-rpc = "sysml_vim.rpc:main"
+sysml-pilot-bridge = "sysml_vim.pilot_bridge:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
@@ -31,6 +32,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+sysml_vim = ["PilotBridge.java"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

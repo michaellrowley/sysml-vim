@@ -63,10 +63,12 @@ LIMITATIONS                                            *sysml-vim-limitations*
 
 Model commands require a bridge to the official SysML v2 Pilot parser and
 validator. Configure SYSML_PILOT_COMMAND (argv mode) or
-SYSML_PILOT_RPC_COMMAND (JSON-RPC mode) to use the included bridge. Build the
-Pilot checkout with Java 21 and ./mvnw clean install, then set SYSML_PILOT_HOME
-and point SYSML_PILOT_COMMAND at tools/sysml-pilot-bridge/run.py. The launcher
-compiles the bridge on first use. See docs/pilot-parser.md for full setup.
+SYSML_PILOT_RPC_COMMAND (JSON-RPC mode) to use the included bridge. Install
+sysml-vim into the Python environment used by the backend; it installs the
+sysml-pilot-bridge command. Build the Pilot checkout with Java 21 and
+./mvnw clean install, then set SYSML_PILOT_HOME and
+SYSML_PILOT_COMMAND=sysml-pilot-bridge in Vim's launch environment. The bridge
+compiles on first use. See docs/pilot-parser.md for full setup.
 
 There is no built-in subset parser or fallback. The index and views expose
 selected bridge-provided model projections, not a complete semantic API.

@@ -36,7 +36,7 @@ import org.eclipse.xtext.validation.Issue;
 import org.eclipse.xtext.validation.IResourceValidator;
 import org.omg.sysml.interactive.SysMLInteractive;
 
-/** JSON command-line bridge to the official Pilot's Xtext parser and validator. */
+/** JSON bridge to the official Pilot's Xtext parser and validator. */
 public final class PilotBridge {
     private static final Gson JSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final String PILOT_NAME = "SysML v2 Pilot Implementation";

@@ -6,6 +6,8 @@ The repository includes a Java bridge that uses the [SysML v2 Pilot Implementati
 
 Install a Java 21 JDK (`java` and `javac` on `PATH`) and build the official Pilot checkout. Its Maven wrapper downloads Maven and the required dependencies:
 
+On macOS with Homebrew, the [full installer](installation.md#automated-full-install-on-macos) can install missing prerequisites, build the Pilot, install the Vim plugin, and configure its Python environment in one run. From an existing sysml-vim checkout, run `./tools/install.sh`.
+
 ```sh
 git clone https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation.git
 cd SysML-v2-Pilot-Implementation
@@ -14,17 +16,17 @@ cd SysML-v2-Pilot-Implementation
 
 The command-line build does not require launching the Eclipse IDE. It builds the Pilot plugins and its shaded parser JAR at `org.omg.sysml.interactive/target/org.omg.sysml.interactive-*-all.jar`; the model libraries are in `sysml.library/`.
 
-Install sysml-vim, then configure its included launcher:
+From the sysml-vim checkout, install the Python package and configure the installed bridge command:
 
 ```sh
-python3 -m pip install -e /path/to/sysml-vim
+python3 -m pip install -e .
 export SYSML_PILOT_HOME="$HOME/SysML-v2-Pilot-Implementation"
-export SYSML_PILOT_COMMAND="python3 /path/to/sysml-vim/tools/sysml-pilot-bridge/run.py"
+export SYSML_PILOT_COMMAND="sysml-pilot-bridge"
 sysml health
-sysml check /path/to/sysml-vim/tests/fixtures/workspace
+sysml check tests/fixtures/workspace
 ```
 
-The Python launcher finds the shaded JAR and model libraries under `SYSML_PILOT_HOME`. On first use it compiles `PilotBridge.java` with `javac`, caches the class files outside the repository (`$XDG_CACHE_HOME` or `~/.cache`), then starts the Pilot parser. Set `SYSML_PILOT_JAR` or `SYSML_PILOT_LIBRARY` only if those resources are not in their normal checkout locations. For JSON-RPC transport, set `SYSML_PILOT_RPC_COMMAND` to the same launcher instead; it accepts both transports.
+Run the install command from the sysml-vim checkout. It installs the `sysml-pilot-bridge` console command and packages the Java bridge source, so the parser command needs no absolute path to the checkout. Activate the Python environment used for installation or add its `bin`/`Scripts` directory to `PATH`, including in the environment that launches Vim/Neovim. The bridge finds the shaded JAR and model libraries under `SYSML_PILOT_HOME`; on first use it compiles `PilotBridge.java` with `javac`, caches the class files outside the repository (`$XDG_CACHE_HOME` or `~/.cache`), then starts the Pilot parser. Set `SYSML_PILOT_JAR` or `SYSML_PILOT_LIBRARY` only if those resources are not in their normal checkout locations. For JSON-RPC transport, set `SYSML_PILOT_RPC_COMMAND=sysml-pilot-bridge` instead; it accepts both transports.
 
 The editor inherits environment variables from the process that starts it. For GUI Vim/Neovim, configure the variables in the GUI launch environment as well as in shell startup files.
 

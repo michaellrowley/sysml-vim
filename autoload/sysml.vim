@@ -31,7 +31,12 @@ function! s:ensure_rpc_job() abort
   if !s:rpc_enabled()
     return 0
   endif
-  if s:rpc_job != 0 && job_status(s:rpc_job) ==# 'run'
+  " Vim uses Job objects; Neovim's compatibility API can return numeric IDs.
+  if type(s:rpc_job) == v:t_number
+    if s:rpc_job > 0 && job_status(s:rpc_job) ==# 'run'
+      return 1
+    endif
+  elseif job_status(s:rpc_job) ==# 'run'
     return 1
   endif
   let cmd = [s:rpc_cmd()]

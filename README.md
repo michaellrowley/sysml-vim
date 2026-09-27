@@ -60,24 +60,23 @@ Checked on 2026-09-27:
 ```bash
 python -m pip install -e .
 export SYSML_PILOT_HOME="$HOME/SysML-v2-Pilot-Implementation"
-export SYSML_PILOT_COMMAND="python3 /path/to/sysml-vim/tools/sysml-pilot-bridge/run.py"
+export SYSML_PILOT_COMMAND="sysml-pilot-bridge"
 sysml health --path .
 sysml check tests/fixtures/workspace
 sysml view composition --path tests/fixtures/workspace --format text
 ```
 
-The repository includes a Java bridge to the Pilot's Xtext parser and validator. Build the official Pilot once, point `SYSML_PILOT_HOME` at its checkout, and configure `SYSML_PILOT_COMMAND` to the included `tools/sysml-pilot-bridge/run.py`; the launcher compiles the bridge against the Pilot's generated `*-all.jar` on its first run. See [the complete setup](docs/pilot-parser.md). Without the Pilot build or a configured bridge, model commands report an explicit error rather than using an incomplete parser.
+Installing sysml-vim also installs the `sysml-pilot-bridge` command into the same Python environment. Activate that environment (or add its `bin`/`Scripts` directory to `PATH`), then configure the command without a repository-specific path. The bridge compiles against the Pilot's generated `*-all.jar` on first use. See [the complete setup](docs/pilot-parser.md). Without the Pilot build or a configured bridge, model commands report an explicit error rather than using an incomplete parser.
 
-### Install into Vim in a few commands
+### Full one-line Vim install (macOS)
 
-```bash
-mkdir -p ~/.vim/pack/plugins/start
-git clone https://github.com/michaellrowley/sysml-vim ~/.vim/pack/plugins/start/sysml-vim
-python -m pip install -e ~/.vim/pack/plugins/start/sysml-vim
-vim -Nu NONE -n -c "set rtp+=~/.vim/pack/plugins/start/sysml-vim" -c "source ~/.vim/pack/plugins/start/sysml-vim/plugin/sysml.vim" -c "echo exists(':SysmlCheck')" -c "qa!"
+Requires Homebrew. This clones sysml-vim into Vim's package directory and runs the installer, which installs missing prerequisites, builds the official Pilot, creates a dedicated Python environment, and configures Vim:
+
+```sh
+brew install git && mkdir -p "$HOME/.vim/pack/plugins/start" && git clone https://github.com/michaellrowley/sysml-vim "$HOME/.vim/pack/plugins/start/sysml-vim" && "$HOME/.vim/pack/plugins/start/sysml-vim/tools/install.sh"
 ```
 
-Vim/Neovim (with native packages, vim-plug, or lazy.nvim) can load this repository directly; see `docs/installation.md`.
+For an existing checkout, run `./tools/install.sh` from its root. The installer reuses an existing Pilot build; a fresh Pilot build can take several minutes. See [the installer details](docs/installation.md) and [manual setup](docs/pilot-parser.md). Vim/Neovim (with native packages, vim-plug, or lazy.nvim) can also load the repository directly.
 
 ## JSON-RPC protocol (`sysml-rpc`)
 
