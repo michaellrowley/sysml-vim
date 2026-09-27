@@ -43,5 +43,9 @@ jobs:
           sysml view composition --path tests/fixtures/workspace --format svg > /tmp/view.svg
       - name: Vim smoke test
         run: vim -Nu NONE -n -es -S tests/vim_smoke.vim
+      - name: Vim language server smoke test
+        run: vim -Nu NONE -n -es -S tests/vim_lsp_smoke.vim
+      - name: Vim view refresh smoke test
+        run: vim -Nu NONE -n -es -S tests/vim_view_smoke.vim
       - name: Neovim smoke test
         run: nvim --headless -u NONE -c "set rtp+=." -c "source plugin/sysml.vim" -c "if !exists(':SysmlCheck') | cquit 1 | endif" -c "qa"

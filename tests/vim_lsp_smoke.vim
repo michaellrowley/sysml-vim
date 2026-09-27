@@ -1,10 +1,19 @@
 set nocompatible
+execute 'set runtimepath^=' . fnameescape(getcwd())
+source plugin/sysml.vim
 
 if !exists(':SysmlCheck') || !exists(':SysmlGraph')
   cquit 1
 endif
 
+let $PYTHONPATH = getcwd() . '/src' . (empty($PYTHONPATH) ? '' : ':' . $PYTHONPATH)
+let g:sysml_rpc_cmd = exepath('sysml-rpc')
+if empty(g:sysml_rpc_cmd)
+  cquit 7
+endif
+let g:sysml_rpc_timeout_ms = 10000
 let s:workspace = getcwd() . '/tests/fixtures/lsp'
+execute 'lcd ' . fnameescape(s:workspace)
 call sysml#check(s:workspace)
 if !empty(filter(getqflist(), 'v:val.valid && v:val.type ==# "E"'))
   cquit 2
