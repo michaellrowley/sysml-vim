@@ -125,10 +125,19 @@ function! s:json_decode_lines(lines) abort
 endfunction
 
 function! s:open_result_buffer(name, lines) abort
-  botright new
-  execute 'file ' . a:name
+  let existing_buffer = bufnr(a:name)
+  if bufname('%') ==# a:name
+    " Reuse the visible result buffer instead of reopening its existing name.
+  elseif existing_buffer >= 0
+    execute 'botright sbuffer ' . existing_buffer
+  else
+    botright new
+    execute 'file ' . fnameescape(a:name)
+  endif
   setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile
-  call setline(1, a:lines)
+  setlocal modifiable
+  silent! %delete _
+  call setline(1, empty(a:lines) ? [''] : a:lines)
 endfunction
 
 function! s:set_qf(diagnostics) abort

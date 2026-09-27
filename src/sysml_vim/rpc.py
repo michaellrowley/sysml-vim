@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from .adapter import OfficialPilotAdapter, ParserBackendError
+from .adapter import ParserBackendError, SysMLLspAdapter
 from .render import build_view, render_graph, render_text
 from .workspace import WorkspaceIndex
 
@@ -33,14 +33,8 @@ def _index_for(path_value: str, force_refresh: bool = False) -> WorkspaceIndex:
 def _handle(method: str, params: dict[str, Any]) -> Any:
     path = str(Path(params.get("path", ".")).resolve())
 
-    if method == "official_status":
-        return OfficialPilotAdapter().capabilities()
-    if method == "official":
-        if "operation" not in params:
-            raise ValueError("Missing required param: operation")
-        adapter = OfficialPilotAdapter()
-        payload = params.get("payload", {})
-        return adapter.invoke(params["operation"], Path(path), payload)
+    if method == "parser_status":
+        return SysMLLspAdapter().capabilities()
     if method == "health":
         return WorkspaceIndex(Path(path)).health()
 
@@ -101,6 +95,7 @@ def main() -> int:
             sys.stdout.write(json.dumps(resp) + "\n")
             sys.stdout.flush()
             if method == "shutdown":
+                _close_workspace_indexes()
                 return 0
         except LookupError as exc:
             sys.stdout.write(json.dumps(_error(req.get("id") if isinstance(req, dict) else None, -32601, str(exc))) + "\n")
@@ -115,6 +110,12 @@ def main() -> int:
             sys.stdout.write(json.dumps(_error(req.get("id") if isinstance(req, dict) else None, -32603, str(exc))) + "\n")
             sys.stdout.flush()
     return 0
+
+
+def _close_workspace_indexes() -> None:
+    for workspace_index in _INDEX_CACHE.values():
+        workspace_index.parser_adapter.close()
+    _INDEX_CACHE.clear()
 
 
 if __name__ == "__main__":

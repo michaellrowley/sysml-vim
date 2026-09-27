@@ -22,3 +22,4 @@ def test_render_graph_hierarchy():
     assert "View Graph: composition (ELK-style layered blocks)" in graph
     assert "Vehicle:part_def" in graph
     assert "- Vehicle -[contains]-> engine" in graph or "- Vehicle -[contains]-> wheel" in graph
+    assert "- engine -[typed_by]-> Engine" in graph

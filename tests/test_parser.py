@@ -6,7 +6,7 @@ from sysml_vim.adapter import ParserBackendError
 from sysml_vim.workspace import WorkspaceIndex
 
 
-def test_official_parser_output_indexes_representative_sysml_constructs():
+def test_lsp_model_projection_indexes_representative_sysml_constructs():
     index = WorkspaceIndex(Path("tests/fixtures/workspace"))
     index.refresh()
 
@@ -21,12 +21,11 @@ def test_official_parser_output_indexes_representative_sysml_constructs():
     reference_relations = {
         reference["relation"] for reference in index.references("Vehicle")
     }
-    assert {"import", "allocate", "trace"} <= reference_relations
-    assert any(reference["relation"] == "transition" for reference in index.references("Active"))
+    assert {"import", "allocate", "dependency"} <= reference_relations
     assert any(reference["relation"] == "satisfy" for reference in index.references("R1"))
 
 
-def test_parser_diagnostics_are_preserved():
+def test_language_server_diagnostics_are_preserved():
     index = WorkspaceIndex(Path("tests/fixtures/workspace"))
     index.refresh()
 
@@ -34,7 +33,7 @@ def test_parser_diagnostics_are_preserved():
     assert any(
         diagnostic["file"].endswith("bad.sysml")
         and diagnostic["severity"] == "error"
-        and diagnostic["source"] == "SysML v2 Pilot Implementation"
+        and diagnostic["source"] == "sysml-v2-lsp"
         for diagnostic in diagnostics
     )
 
@@ -44,5 +43,5 @@ def test_parser_response_must_identify_standards_and_cover_requested_files():
         def parse_workspace(self, workspace, files):
             return {"parser": {"name": "unknown", "version": "1"}, "files": []}
 
-    with pytest.raises(ParserBackendError, match="SysML v2 Pilot"):
+    with pytest.raises(ParserBackendError, match="SysML v2 LSP"):
         WorkspaceIndex(Path("tests/fixtures/workspace"), InvalidParser()).refresh()

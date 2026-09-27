@@ -8,7 +8,12 @@
 4. Run Vim/Neovim smoke checks
 5. Submit PR with test output and capability/conformance impact
 
-The default tests isolate the backend with a static parser-protocol test double. For changes to the bridge or model projection, also follow [the Pilot setup](docs/pilot-parser.md), build the official Pilot, and run `pytest -q` with `SYSML_PILOT_HOME` set so the optional end-to-end Pilot test runs.
+The default tests isolate the backend with a static LSP protocol test double. For changes to the parser adapter or model projection, install the pinned language server as described in [the parser setup](docs/lsp-parser.md), then run the real-package integration test:
+
+```sh
+SYSML_LSP_SERVER="$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js" \
+  pytest -q tests/test_lsp_integration.py
+```
 
 ## Standards alignment
 

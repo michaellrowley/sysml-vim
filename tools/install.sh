@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly PILOT_REPOSITORY="https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation.git"
-readonly PILOT_JAR_PATTERN="org.omg.sysml.interactive-*-all.jar"
+readonly LSP_PACKAGE_NAME="sysml-v2-lsp"
+readonly DEFAULT_LSP_PACKAGE_VERSION="0.31.0"
 
 fail() {
   printf 'sysml-vim installer: %s\n' "$1" >&2
@@ -14,28 +14,22 @@ python_is_supported() {
     python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 11))'
 }
 
-java_is_supported() {
-  command -v java >/dev/null 2>&1 || return 1
-  command -v javac >/dev/null 2>&1 || return 1
-
-  local runtime_major compiler_major
-  runtime_major=$(java -version 2>&1 | awk -F '"' 'NR == 1 { split($2, version, "."); print version[1] }')
-  compiler_major=$(javac -version 2>&1 | awk '{ split($2, version, "."); print version[1] }')
-  [[ "$runtime_major" =~ ^[0-9]+$ && "$compiler_major" =~ ^[0-9]+$ ]] || return 1
-  (( runtime_major >= 21 && compiler_major >= 21 ))
+node_is_supported() {
+  command -v node >/dev/null 2>&1 &&
+    node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 20 ? 0 : 1)'
 }
 
 if [[ "${1:-}" == "--help" ]]; then
   cat <<'HELP'
-Install the SysML v2 Pilot, the sysml-vim Python backend, and the Vim plugin.
+Install the SysML v2 language server, the sysml-vim Python backend, and Vim plugin.
 
 Run this script from a sysml-vim checkout. Homebrew is used on macOS to install
-missing Git, Python 3.11+, Java 21+, or Vim dependencies.
+missing Python 3.11+, Node.js 20+, or Vim dependencies.
 
 Overrides:
   SYSML_VIM_INSTALL_ROOT  data and Python environment directory
   SYSML_VIM_PLUGIN_DIR    Vim package install location
-  SYSML_PILOT_HOME        existing or desired Pilot checkout
+  SYSML_LSP_PACKAGE_VERSION  sysml-v2-lsp npm version (default: 0.31.0)
 HELP
   exit 0
 fi
@@ -46,9 +40,10 @@ source_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 [[ -f "$source_root/pyproject.toml" ]] || fail "run this script from a sysml-vim checkout"
 
 brew_packages=()
-command -v git >/dev/null 2>&1 || brew_packages+=(git)
 python_is_supported || brew_packages+=(python@3.12)
-java_is_supported || brew_packages+=(openjdk@21)
+if ! node_is_supported || ! command -v npm >/dev/null 2>&1; then
+  brew_packages+=(node)
+fi
 command -v vim >/dev/null 2>&1 || brew_packages+=(vim)
 
 if (( ${#brew_packages[@]} > 0 )); then
@@ -61,18 +56,11 @@ if (( ${#brew_packages[@]} > 0 )); then
     python_prefix=$(brew --prefix python@3.12)
     export PATH="$python_prefix/bin:$PATH"
   fi
-  if ! java_is_supported; then
-    jdk_prefix=$(brew --prefix openjdk@21)
-    jdk_home="$jdk_prefix/libexec/openjdk.jdk/Contents/Home"
-    [[ -x "$jdk_home/bin/java" ]] || fail "Homebrew's openjdk@21 installation is incomplete"
-    export JAVA_HOME="$jdk_home"
-    export PATH="$JAVA_HOME/bin:$jdk_prefix/bin:$PATH"
-  fi
 fi
 
-command -v git >/dev/null 2>&1 || fail "git is required"
 python_is_supported || fail "Python 3.11 or newer is required"
-java_is_supported || fail "a Java 21 or newer JDK (java and javac) is required"
+node_is_supported || fail "Node.js 20 or newer is required"
+command -v npm >/dev/null 2>&1 || fail "npm is required to install the SysML language server"
 command -v vim >/dev/null 2>&1 || fail "Vim is required"
 
 home_directory=${HOME:?HOME must be set}
@@ -80,30 +68,20 @@ install_root=${SYSML_VIM_INSTALL_ROOT:-"$home_directory/.local/share/sysml-vim"}
 mkdir -p "$install_root"
 install_root=$(cd "$install_root" && pwd -P)
 
-pilot_home=${SYSML_PILOT_HOME:-"$install_root/SysML-v2-Pilot-Implementation"}
-case "$pilot_home" in
-  /*) ;;
-  *) pilot_home="$PWD/$pilot_home" ;;
-esac
-mkdir -p "$(dirname "$pilot_home")"
-if [[ ! -f "$pilot_home/mvnw" ]]; then
-  if [[ -d "$pilot_home" ]] && [[ -n "$(find "$pilot_home" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
-    fail "Pilot directory exists but is not a Pilot checkout: $pilot_home"
-  fi
-  printf 'Cloning the official SysML v2 Pilot into %s\n' "$pilot_home"
-  git clone "$PILOT_REPOSITORY" "$pilot_home"
-fi
-pilot_home=$(cd "$pilot_home" && pwd -P)
-
-shopt -s nullglob
-pilot_jars=("$pilot_home/org.omg.sysml.interactive/target/"$PILOT_JAR_PATTERN)
-if [[ ! -d "$pilot_home/sysml.library" ]] || (( ${#pilot_jars[@]} != 1 )); then
-  printf 'Building the official Pilot and its model library; this can take several minutes.\n'
-  (cd "$pilot_home" && ./mvnw clean install)
-fi
-pilot_jars=("$pilot_home/org.omg.sysml.interactive/target/"$PILOT_JAR_PATTERN)
-[[ -d "$pilot_home/sysml.library" ]] || fail "Pilot model library is missing after the build"
-(( ${#pilot_jars[@]} == 1 )) || fail "expected one Pilot interactive *-all.jar after the build"
+lsp_home="$install_root/lsp"
+lsp_package_version=${SYSML_LSP_PACKAGE_VERSION:-$DEFAULT_LSP_PACKAGE_VERSION}
+mkdir -p "$lsp_home"
+printf 'Installing %s@%s into %s\n' "$LSP_PACKAGE_NAME" "$lsp_package_version" "$lsp_home"
+npm install \
+  --prefix "$lsp_home" \
+  --no-save \
+  --no-package-lock \
+  --ignore-scripts \
+  --no-audit \
+  --no-fund \
+  "$LSP_PACKAGE_NAME@$lsp_package_version"
+lsp_server="$lsp_home/node_modules/$LSP_PACKAGE_NAME/dist/server/server.js"
+[[ -f "$lsp_server" ]] || fail "the installed package does not contain its LSP server entry point"
 
 plugin_directory=${SYSML_VIM_PLUGIN_DIR:-"$home_directory/.vim/pack/plugins/start/sysml-vim"}
 plugin_parent=$(dirname "$plugin_directory")
@@ -128,9 +106,7 @@ if [[ ! -x "$virtual_environment/bin/python" ]]; then
 fi
 "$virtual_environment/bin/python" -m pip install --editable "$source_root"
 
-java_bin=$(command -v java)
-javac_bin=$(command -v javac)
-path_prefix="$virtual_environment/bin:$(dirname "$java_bin"):$(dirname "$javac_bin")"
+path_prefix="$virtual_environment/bin:$(dirname "$(command -v node)")"
 if command -v dot >/dev/null 2>&1; then
   path_prefix="$path_prefix:$(dirname "$(command -v dot)")"
 fi
@@ -149,9 +125,7 @@ vim_quote() {
     printf "let &runtimepath = '%s' . ',' . &runtimepath\n" "$(vim_quote "$source_root")"
   fi
   printf "let \$PATH = '%s' . ':' . \$PATH\n" "$(vim_quote "$path_prefix")"
-  printf "let \$SYSML_PILOT_HOME = '%s'\n" "$(vim_quote "$pilot_home")"
-  printf "let \$SYSML_PILOT_COMMAND = '%s'\n" "$(vim_quote "$virtual_environment/bin/sysml-pilot-bridge")"
-  printf "let \$SYSML_PILOT_RPC_COMMAND = '%s'\n" "$(vim_quote "$virtual_environment/bin/sysml-pilot-bridge")"
+  printf "let \$SYSML_LSP_SERVER = '%s'\n" "$(vim_quote "$lsp_server")"
   printf "let g:sysml_backend_cmd = '%s'\n" "$(vim_quote "$virtual_environment/bin/sysml")"
   printf "let g:sysml_rpc_cmd = '%s'\n" "$(vim_quote "$virtual_environment/bin/sysml-rpc")"
   printf 'let g:sysml_use_rpc = 1\n'
@@ -165,7 +139,7 @@ if ! grep -Fqx "$source_statement" "$vimrc"; then
 fi
 
 printf '\nInstallation complete.\n'
-printf 'Pilot: %s\n' "$pilot_home"
+printf 'Parser: %s@%s\n' "$LSP_PACKAGE_NAME" "$lsp_package_version"
 if (( load_source_root_first )); then
   printf 'Vim plugin: %s (runtimepath; preserved existing checkout at %s)\n' \
     "$source_root" "$plugin_directory"

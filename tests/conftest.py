@@ -11,8 +11,7 @@ os.environ["PYTHONPATH"] = os.pathsep.join(
     path for path in (repository_source, existing_pythonpath) if path
 )
 
-mock_pilot_bridge = Path(__file__).parent / "fixtures" / "mock_pilot_bridge.py"
-os.environ.pop("SYSML_PILOT_RPC_COMMAND", None)
-os.environ["SYSML_PILOT_COMMAND"] = (
-    shlex.join([sys.executable, str(mock_pilot_bridge)])
+mock_lsp_server = Path(__file__).parent / "fixtures" / "mock_lsp_server.py"
+os.environ["SYSML_LSP_COMMAND"] = (
+    shlex.join([sys.executable, str(mock_lsp_server)])
 )

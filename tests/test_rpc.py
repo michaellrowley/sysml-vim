@@ -69,8 +69,8 @@ def test_rpc_missing_params_returns_invalid_params():
 
 def test_rpc_reports_missing_parser_without_fallback():
     environment = os.environ.copy()
-    environment.pop("SYSML_PILOT_COMMAND", None)
-    environment.pop("SYSML_PILOT_RPC_COMMAND", None)
+    environment.pop("SYSML_LSP_COMMAND", None)
+    environment["SYSML_LSP_SERVER"] = "/missing/sysml-lsp/server.js"
     proc = subprocess.Popen(
         [sys.executable, "-m", "sysml_vim.rpc"],
         stdin=subprocess.PIPE,

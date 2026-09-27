@@ -28,9 +28,8 @@ def test_workspace_import_and_behavior_references():
     vehicle_refs = index.references("Vehicle")
     assert any(r.get("relation") == "import" for r in vehicle_refs)
     assert any(r.get("relation") == "allocate" for r in vehicle_refs)
-
-    state_refs = index.references("Active")
-    assert any(r.get("relation") == "transition" for r in state_refs)
+    assert any(r.get("relation") == "dependency" for r in vehicle_refs)
+    assert index.definition("Active")["kind"] == "state_def"
 
 
 def test_workspace_snapshot_detects_model_file_changes(tmp_path):
@@ -41,9 +40,12 @@ def test_workspace_snapshot_detects_model_file_changes(tmp_path):
             self.calls += 1
             return {
                 "parser": {
-                    "name": "SysML v2 Pilot Implementation (test double)",
-                    "version": "0.63.0",
-                    "standards": ["SysML 2.0", "KerML 1.0"],
+                    "name": "SysML v2 Language Server (ANTLR)",
+                    "version": "0.31.0",
+                    "standards": [
+                        "SysML v2 textual grammar derived from OMG KEBNF",
+                        "KerML textual grammar derived from OMG KEBNF",
+                    ],
                 },
                 "files": [
                     {

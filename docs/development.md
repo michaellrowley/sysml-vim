@@ -3,10 +3,17 @@
 ## Setup
 
 ```bash
-python -m pip install -e .[dev]
+python3 -m pip install -e '.[dev]'
 ```
 
-The regular test suite uses a static parser-protocol test double and does not need Java or a Pilot checkout. For a real parser integration run, follow [the Pilot bridge setup](pilot-parser.md), build the official Pilot, and set `SYSML_PILOT_HOME` (or `SYSML_PILOT_JAR`) before running tests. `tests/test_pilot_bridge.py` then compiles and exercises the included Java bridge against that build.
+The regular test suite uses a canned LSP protocol server and does not need Node.js or network access. For integration tests against the published parser, install the package as described in [the parser integration guide](lsp-parser.md), then run:
+
+```sh
+SYSML_LSP_SERVER="$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js" \
+  pytest -q tests/test_lsp_integration.py
+```
+
+The integration test covers part and attribute definitions/usages, a requirement/satisfy relationship, an import, and a syntax error. It verifies parser behavior; it does not establish full normative semantic conformance.
 
 ## Test
 

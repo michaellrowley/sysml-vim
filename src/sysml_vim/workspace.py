@@ -5,15 +5,15 @@ from pathlib import Path
 import shutil
 from typing import Any, Mapping
 
-from .adapter import OfficialPilotAdapter, ParserBackendError
+from .adapter import ParserBackendError, SysMLLspAdapter
 from .model import Diagnostic, ParsedFile, Range, Reference, Symbol, iter_model_files
 
 
 class WorkspaceIndex:
-    def __init__(self, root: Path, parser_adapter: OfficialPilotAdapter | None = None):
+    def __init__(self, root: Path, parser_adapter: SysMLLspAdapter | None = None):
         self.root = root.resolve()
         self.parser_adapter = (
-            parser_adapter if parser_adapter is not None else OfficialPilotAdapter()
+            parser_adapter if parser_adapter is not None else SysMLLspAdapter()
         )
         self.files: dict[str, ParsedFile] = {}
         self.symbols_by_name: dict[str, list[Symbol]] = {}
@@ -50,7 +50,6 @@ class WorkspaceIndex:
                 self.symbols_by_name.setdefault(symbol.name, []).append(symbol)
             for reference in parsed.references:
                 self.references_by_name.setdefault(reference.name, []).append(reference)
-        # Only the Pilot validator knows the full scope and import rules.
 
     def is_current(self) -> bool:
         current_snapshot = {}
@@ -79,15 +78,18 @@ class WorkspaceIndex:
         if (
             not isinstance(parser_name, str)
             or not parser_name.strip()
-            or "SysML v2 Pilot Implementation" not in parser_name
+            or parser_name != "SysML v2 Language Server (ANTLR)"
             or not isinstance(parser_version, str)
             or not parser_version.strip()
             or not isinstance(parser_standards, list)
             or any(not isinstance(standard_name, str) for standard_name in parser_standards)
-            or not {"SysML 2.0", "KerML 1.0"}.issubset(parser_standards)
+            or not {
+                "SysML v2 textual grammar derived from OMG KEBNF",
+                "KerML textual grammar derived from OMG KEBNF",
+            }.issubset(parser_standards)
         ):
             raise ParserBackendError(
-                "parser metadata must identify the SysML v2 Pilot, its version, and SysML 2.0/KerML 1.0 support"
+                "parser metadata must identify the SysML v2 LSP, its version, and its OMG KEBNF-derived grammars"
             )
 
         response_files = response.get("files")
@@ -303,7 +305,7 @@ class WorkspaceIndex:
                 "active": self.parser_info,
             },
             "capabilities": {
-                "parser_bridge_configured": self.parser_adapter.available(),
+                "language_server_configured": self.parser_adapter.available(),
                 "text_views": True,
                 "dot_views": True,
                 "svg_views": bool(graphviz_path),

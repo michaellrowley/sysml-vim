@@ -12,10 +12,9 @@
 - `sysml tree [path]`
 - `sysml view TYPE [--focus E] [--depth N] [--path P] [--format text|dot|svg|json|graph]`
 - `sysml health [--path P]`
-- `sysml official-status`
-- `sysml adapter OP [--path P] [--payload JSON]`
+- `sysml parser-status`
 
-All commands that read a model require a configured official Pilot parser bridge. See [installation](installation.md#sysml-v2-parser-and-validator) and [the bridge contract](pilot-parser.md).
+All commands that read a model require the configured SysML language server. See [installation](installation.md) and [the parser integration guide](lsp-parser.md).
 
 ## Vim commands
 

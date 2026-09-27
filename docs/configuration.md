@@ -6,18 +6,17 @@
 - `g:sysml_default_view` (default: `composition`)
 - `g:sysml_use_rpc` (default: `1`) enables persistent `sysml-rpc` usage with CLI fallback
 - `g:sysml_rpc_cmd` (default: `sysml-rpc`)
-- `g:sysml_rpc_timeout_ms` (default: `120000`; allow the Pilot time to start and validate a workspace)
+- `g:sysml_rpc_timeout_ms` (default: `120000`; allows the LSP to start and analyze a workspace)
 
 ## Environment variables
 
-- `SYSML_PILOT_HOME`: official Pilot checkout built with `./mvnw clean install`; the included launcher locates its parser JAR and model libraries here
-- `SYSML_PILOT_COMMAND`: installed `sysml-pilot-bridge` command in argv mode
-- `SYSML_PILOT_RPC_COMMAND`: optional JSON-RPC transport using `sysml-pilot-bridge` (takes precedence when both command variables are set)
-- `SYSML_PILOT_JAR`: optional explicit path to the Pilot's `org.omg.sysml.interactive-*-all.jar`
-- `SYSML_PILOT_LIBRARY`: optional explicit path to the Pilot's `sysml.library` directory
+- `SYSML_LSP_SERVER`: path to the installed `sysml-v2-lsp` `dist/server/server.js`; defaults to `~/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js`
+- `SYSML_LSP_COMMAND`: optional shell-quoted command and arguments for another compatible SysML LSP server; takes precedence over `SYSML_LSP_SERVER`
+- `SYSML_NODE_COMMAND`: Node.js executable command (default: `node`)
+- `XDG_DATA_HOME`: changes the default user data directory used to locate the LSP package
 
-Install sysml-vim in the Python environment used by the backend; this also installs `sysml-pilot-bridge`. Ensure that environment's `bin`/`Scripts` directory is on `PATH` when Vim/Neovim starts. The command compiles its packaged Java bridge against the official Pilot JAR on first use and caches the class files outside the repository. See [the complete build and installation instructions](pilot-parser.md). No built-in subset parser or fallback is available.
+Install Node.js 20+, the LSP package, and the Python backend as described in [installation](installation.md) and [the parser integration guide](lsp-parser.md). Vim/Neovim must inherit the LSP environment when it starts. There is no built-in subset parser or fallback.
 
 ## Health report
 
-Run `:SysmlHealth` or `sysml health --path .` to confirm bridge configuration. Health does not start Java; run `sysml check` to confirm the Pilot JAR can be loaded and the workspace validates.
+Run `:SysmlHealth`, `sysml health --path .`, or `sysml parser-status` to check server configuration without starting Node. Run `sysml check <workspace>` to exercise parsing and collect diagnostics from the language server.

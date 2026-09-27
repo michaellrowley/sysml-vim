@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from .adapter import OfficialPilotAdapter, ParserBackendError
+from .adapter import ParserBackendError, SysMLLspAdapter
 from .render import build_view, render_dot, render_graph, render_svg, render_text
 from .workspace import WorkspaceIndex
 
@@ -94,16 +94,8 @@ def cmd_health(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_adapter(args: argparse.Namespace) -> int:
-    adapter = OfficialPilotAdapter()
-    payload = json.loads(args.payload) if args.payload else {}
-    result = adapter.invoke(args.operation, Path(args.path), payload)
-    _json_out(result)
-    return 0 if result.get("ok") else 2
-
-
-def cmd_official_status(_: argparse.Namespace) -> int:
-    adapter = OfficialPilotAdapter()
+def cmd_parser_status(_: argparse.Namespace) -> int:
+    adapter = SysMLLspAdapter()
     _json_out(adapter.capabilities())
     return 0
 
@@ -163,14 +155,11 @@ def parser() -> argparse.ArgumentParser:
     health.add_argument("--path", default=".")
     health.set_defaults(func=cmd_health)
 
-    official_status = sub.add_parser("official-status", help="report configured official adapter capabilities")
-    official_status.set_defaults(func=cmd_official_status)
-
-    adapter = sub.add_parser("adapter", help="invoke official adapter")
-    adapter.add_argument("operation")
-    adapter.add_argument("--path", default=".")
-    adapter.add_argument("--payload")
-    adapter.set_defaults(func=cmd_adapter)
+    parser_status = sub.add_parser(
+        "parser-status",
+        help="report configured SysML language-server capabilities",
+    )
+    parser_status.set_defaults(func=cmd_parser_status)
 
     return p
 

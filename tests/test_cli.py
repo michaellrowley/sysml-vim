@@ -79,11 +79,12 @@ def test_cli_svg_view_branch_with_mock(monkeypatch, capsys):
     assert "<svg>ok</svg>" in captured.out
 
 
-def test_cli_reports_bridge_status_and_uses_it_for_navigation():
-    code, out = run_cmd(["official-status"])
+def test_cli_reports_parser_status_and_uses_it_for_navigation():
+    code, out = run_cmd(["parser-status"])
     status = json.loads(out)
+    assert code == 0
     assert "mode" in status
-    assert status["expected_parser"] == "SysML v2 Pilot Implementation"
+    assert status["expected_parser"] == "SysML v2 Language Server (ANTLR)"
     assert status["response_validated"] is False
 
     code2, out2 = run_cmd(["definition", "Vehicle", "--path", "tests/fixtures/workspace"])
@@ -93,8 +94,8 @@ def test_cli_reports_bridge_status_and_uses_it_for_navigation():
 
 
 def test_cli_reports_missing_parser_instead_of_using_a_subset(monkeypatch, capsys):
-    monkeypatch.delenv("SYSML_PILOT_COMMAND", raising=False)
-    monkeypatch.delenv("SYSML_PILOT_RPC_COMMAND", raising=False)
+    monkeypatch.delenv("SYSML_LSP_COMMAND", raising=False)
+    monkeypatch.setenv("SYSML_LSP_SERVER", "/missing/sysml-lsp/server.js")
 
     exit_code = cli.main(["check", "tests/fixtures/workspace"])
 

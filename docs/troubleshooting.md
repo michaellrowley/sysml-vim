@@ -2,8 +2,9 @@
 
 - `sysml: command not found`: install backend (`pip install -e .`) and set `g:sysml_backend_cmd`.
 - No SVG output: install Graphviz (`dot`) and re-run `sysml health`.
-- `SysML v2 parsing is unavailable`: build the official Pilot checkout with Java 21 and `./mvnw clean install`, then set `SYSML_PILOT_HOME` and `SYSML_PILOT_COMMAND` as shown in [the setup guide](pilot-parser.md).
-- Bridge cannot find parser JAR: check that `SYSML_PILOT_HOME/org.omg.sysml.interactive/target/` contains exactly one `org.omg.sysml.interactive-*-all.jar`, or set `SYSML_PILOT_JAR` directly.
-- `javac` or Java class-version error: install a Java 21 JDK and ensure both `java` and `javac` resolve to it on `PATH`.
-- Parser response rejected: check the bridge's stdout contains only the JSON response and that its parser metadata, file paths, source ranges, diagnostics, and standards list match [the contract](pilot-parser.md).
-- Missing diagnostics/references: confirm the configured bridge delegates to the official Pilot parser and validator and passes through its diagnostics; sysml-vim does not independently validate unresolved names.
+- `SysML v2 parsing is unavailable`: install Node.js 20+ and `sysml-v2-lsp@0.31.0`, then configure `SYSML_LSP_SERVER` as shown in [the setup guide](lsp-parser.md).
+- `language server command was not found`: verify the first executable in `SYSML_LSP_COMMAND` is on `PATH`, or unset the override and check the `SYSML_LSP_SERVER` path.
+- `language server did not publish diagnostics`: confirm the configured server supports LSP diagnostics and that the process can finish parsing the workspace. Run `sysml check <workspace>` from a terminal to see the backend error.
+- `language server returned a stale model`: restart the RPC service with `:SysmlRestart`; this usually means the server returned data for an older document version.
+- Missing or incomplete references/graph edges: the upstream `sysml/model` request exposes a selected projection, not every semantic relationship. Check [the documented limits](lsp-parser.md).
+- `sysml-v2-lsp` diagnostics differ from Pilot results: the LSP project's semantic checks are independently implemented and are not Pilot-equivalent validation.

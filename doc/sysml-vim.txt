@@ -61,17 +61,16 @@ Use `:SysmlView {type}` or `sysml view {type}`.
 ==============================================================================
 LIMITATIONS                                            *sysml-vim-limitations*
 
-Model commands require a bridge to the official SysML v2 Pilot parser and
-validator. Configure SYSML_PILOT_COMMAND (argv mode) or
-SYSML_PILOT_RPC_COMMAND (JSON-RPC mode) to use the included bridge. Install
-sysml-vim into the Python environment used by the backend; it installs the
-sysml-pilot-bridge command. Build the Pilot checkout with Java 21 and
-./mvnw clean install, then set SYSML_PILOT_HOME and
-SYSML_PILOT_COMMAND=sysml-pilot-bridge in Vim's launch environment. The bridge
-compiles on first use. See docs/pilot-parser.md for full setup.
+Model commands require Node.js 20+ and the third-party sysml-v2-lsp package.
+Set SYSML_LSP_SERVER to its dist/server/server.js entry point in Vim's launch
+environment. The installer places the package under
+~/.local/share/sysml-vim/lsp and configures this variable. See
+docs/lsp-parser.md for full setup.
 
-There is no built-in subset parser or fallback. The index and views expose
-selected bridge-provided model projections, not a complete semantic API.
+The ANTLR grammar is derived from OMG textual KEBNF by a community project.
+The LSP project's semantic checks are not the official Pilot validator and
+are not a claim of complete SysML/KerML conformance. The index and views expose
+selected model projections, not a complete semantic API.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:
