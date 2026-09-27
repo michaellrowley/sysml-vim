@@ -65,6 +65,15 @@ sysml check tests/fixtures/workspace
 sysml view composition --path tests/fixtures/workspace --format text
 ```
 
+### Install into Vim in a few commands
+
+```bash
+mkdir -p ~/.vim/pack/plugins/start
+git clone https://github.com/michaellrowley/sysml-vim ~/.vim/pack/plugins/start/sysml-vim
+python -m pip install -e ~/.vim/pack/plugins/start/sysml-vim
+vim -Nu NONE -n -c "set rtp+=~/.vim/pack/plugins/start/sysml-vim" -c "source ~/.vim/pack/plugins/start/sysml-vim/plugin/sysml.vim" -c "echo exists(':SysmlCheck')" -c "qa!"
+```
+
 Vim/Neovim (with native packages, vim-plug, or lazy.nvim) can load this repository directly; see `docs/installation.md`.
 
 ## JSON-RPC protocol (`sysml-rpc`)
