@@ -1,6 +1,9 @@
 import json
+from types import SimpleNamespace
 import subprocess
 import sys
+
+from sysml_vim import cli
 
 
 REPO = "."
@@ -41,3 +44,18 @@ def test_cli_definition_and_view():
     view = json.loads(out2)
     assert code2 == 0
     assert view["type"] == "composition"
+
+
+def test_cli_svg_view_branch_with_mock(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "render_svg", lambda _: "<svg>ok</svg>")
+    args = SimpleNamespace(
+        type="composition",
+        focus=None,
+        depth=1,
+        path="tests/fixtures/workspace",
+        format="svg",
+    )
+    rc = cli.cmd_view(args)
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "<svg>ok</svg>" in captured.out

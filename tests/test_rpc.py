@@ -28,3 +28,39 @@ def test_rpc_definition():
         proc.stdin.flush()
     finally:
         proc.terminate()
+
+
+def test_rpc_unknown_method_returns_error():
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "sysml_vim.rpc"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        req = {"jsonrpc": "2.0", "id": 11, "method": "unknown_method", "params": {}}
+        proc.stdin.write(json.dumps(req) + "\n")
+        proc.stdin.flush()
+        resp = json.loads(proc.stdout.readline())
+        assert resp["error"]["code"] == -32601
+    finally:
+        proc.terminate()
+
+
+def test_rpc_missing_params_returns_invalid_params():
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "sysml_vim.rpc"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        req = {"jsonrpc": "2.0", "id": 12, "method": "definition", "params": {}}
+        proc.stdin.write(json.dumps(req) + "\n")
+        proc.stdin.flush()
+        resp = json.loads(proc.stdout.readline())
+        assert resp["error"]["code"] == -32602
+    finally:
+        proc.terminate()

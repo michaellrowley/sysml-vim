@@ -11,6 +11,9 @@ def test_plugin_exposes_required_commands():
         "SysmlFind",
         "SysmlDefinition",
         "SysmlReferences",
+        "SysmlRelationships",
+        "SysmlRequirements",
+        "SysmlTraceability",
         "SysmlHealth",
     ]:
         assert cmd in plugin

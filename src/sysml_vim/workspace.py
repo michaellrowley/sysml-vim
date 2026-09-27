@@ -28,17 +28,21 @@ class WorkspaceIndex:
             for reference in parsed.references:
                 self.references_by_name.setdefault(reference.name, []).append(reference)
 
+        unresolved_seen: set[tuple[str, int, int, str]] = set()
         for refs in self.references_by_name.values():
             for ref in refs:
                 if ref.name not in self.symbols_by_name:
-                    self.files[ref.file].diagnostics.append(
-                        Diagnostic(
-                            file=ref.file,
-                            range=ref.range,
-                            severity="warning",
-                            message=f"Unresolved reference: {ref.name}",
+                    key = (ref.file, ref.range.line, ref.range.col, ref.name)
+                    if key not in unresolved_seen:
+                        unresolved_seen.add(key)
+                        self.files[ref.file].diagnostics.append(
+                            Diagnostic(
+                                file=ref.file,
+                                range=ref.range,
+                                severity="warning",
+                                message=f"Unresolved reference: {ref.name}",
+                            )
                         )
-                    )
 
     def symbols(self, query: str | None = None) -> list[dict[str, Any]]:
         items = [asdict(sym) for syms in self.symbols_by_name.values() for sym in syms]

@@ -150,7 +150,7 @@ function! sysml#definition(...) abort
     echohl WarningMsg | echom 'No definition: ' . name | echohl None
     return
   endif
-  execute 'edit ' . fnameescape(payload.file)
+  execute 'keepjumps drop ' . fnameescape(payload.file)
   call cursor(payload.range.line, payload.range.col + 1)
 endfunction
 

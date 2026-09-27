@@ -26,9 +26,9 @@ command! -nargs=0 SysmlLog call sysml#log()
 command! -nargs=0 SysmlRestart call sysml#restart()
 
 nnoremap <silent> <Plug>(sysml-definition) :SysmlDefinition<CR>
-noremap <silent> <Plug>(sysml-references) :SysmlReferences<CR>
-noremap <silent> <Plug>(sysml-hover) :SysmlHover<CR>
-noremap <silent> <Plug>(sysml-next-diagnostic) ]d
+nnoremap <silent> <Plug>(sysml-references) :SysmlReferences<CR>
+nnoremap <silent> <Plug>(sysml-hover) :SysmlHover<CR>
+nnoremap <silent> <Plug>(sysml-next-diagnostic) ]d
 nnoremap <silent> <Plug>(sysml-prev-diagnostic) [d
 
 if !hasmapto('<Plug>(sysml-definition)')

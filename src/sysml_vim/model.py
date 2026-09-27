@@ -40,6 +40,7 @@ class Reference:
     file: str
     range: Range
     relation: str | None = None
+    source: str | None = None
 
 
 @dataclass(slots=True)
@@ -68,7 +69,8 @@ def _line_range(line_no: int, line: str, token: str) -> Range:
 def parse_sysml(path: Path, text: str) -> ParsedFile:
     parsed = ParsedFile(path=str(path))
     brace_balance = 0
-    package_stack: list[str] = []
+    current_package: str | None = None
+    current_owner: str | None = None
 
     for i, raw in enumerate(text.splitlines(), start=1):
         line = raw.rstrip("\n")
@@ -88,7 +90,8 @@ def parse_sysml(path: Path, text: str) -> ParsedFile:
         pkg_match = PACKAGE_RE.search(line)
         if pkg_match:
             pkg = pkg_match.group(1)
-            package_stack = [pkg]
+            current_package = pkg
+            current_owner = pkg
             parsed.symbols.append(
                 Symbol(
                     name=pkg,
@@ -109,6 +112,7 @@ def parse_sysml(path: Path, text: str) -> ParsedFile:
                     file=str(path),
                     range=_line_range(i, line, imp),
                     relation="import",
+                    source=current_owner,
                 )
             )
 
@@ -116,13 +120,14 @@ def parse_sysml(path: Path, text: str) -> ParsedFile:
         if def_match:
             kind = f"{def_match.group(1)}_def"
             name = def_match.group(2)
+            current_owner = name
             parsed.symbols.append(
                 Symbol(
                     name=name,
                     kind=kind,
                     file=str(path),
                     range=_line_range(i, line, name),
-                    container="::".join(package_stack) if package_stack else None,
+                    container=current_package,
                     signature=line.strip(),
                 )
             )
@@ -137,7 +142,7 @@ def parse_sysml(path: Path, text: str) -> ParsedFile:
                     kind=kind,
                     file=str(path),
                     range=_line_range(i, line, name),
-                    container="::".join(package_stack) if package_stack else None,
+                    container=current_package,
                     signature=line.strip(),
                 )
             )
@@ -149,6 +154,7 @@ def parse_sysml(path: Path, text: str) -> ParsedFile:
                         file=str(path),
                         range=_line_range(i, line, target),
                         relation="typed_by",
+                        source=name,
                     )
                 )
 
@@ -160,19 +166,22 @@ def parse_sysml(path: Path, text: str) -> ParsedFile:
                     file=str(path),
                     range=_line_range(i, line, rel_name),
                     relation=rel.group(1),
+                    source=current_owner,
                 )
             )
 
-        for type_ref in TYPE_REF_RE.finditer(line):
-            name = type_ref.group(1)
-            parsed.references.append(
-                Reference(
-                    name=name,
-                    file=str(path),
-                    range=_line_range(i, line, name),
-                    relation="type",
+        if not usage_match or not usage_match.group(3):
+            for type_ref in TYPE_REF_RE.finditer(line):
+                name = type_ref.group(1)
+                parsed.references.append(
+                    Reference(
+                        name=name,
+                        file=str(path),
+                        range=_line_range(i, line, name),
+                        relation="type",
+                        source=current_owner,
+                    )
                 )
-            )
 
         for trans in TRANSITION_RE.finditer(line):
             for name in trans.groups():
@@ -182,6 +191,7 @@ def parse_sysml(path: Path, text: str) -> ParsedFile:
                         file=str(path),
                         range=_line_range(i, line, name),
                         relation="transition",
+                        source=current_owner,
                     )
                 )
 
@@ -195,6 +205,11 @@ def parse_sysml(path: Path, text: str) -> ParsedFile:
             )
         )
 
+    deduped: dict[tuple[str, int, int, str | None, str | None], Reference] = {}
+    for ref in parsed.references:
+        key = (ref.name, ref.range.line, ref.range.col, ref.relation, ref.source)
+        deduped[key] = ref
+    parsed.references = list(deduped.values())
     return parsed
 
 

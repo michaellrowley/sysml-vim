@@ -7,4 +7,13 @@ endif
 if !exists(':SysmlView')
   cquit 1
 endif
+if !exists(':SysmlRelationships')
+  cquit 1
+endif
+if !exists(':SysmlRequirements')
+  cquit 1
+endif
+if !exists(':SysmlTraceability')
+  cquit 1
+endif
 quitall!

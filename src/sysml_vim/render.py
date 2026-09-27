@@ -9,9 +9,7 @@ from .workspace import WorkspaceIndex
 
 def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, depth: int = 3) -> dict[str, Any]:
     symbols = index.symbols()
-    refs_map: dict[str, list[dict[str, Any]]] = {}
-    for name in {s["name"] for s in symbols}:
-        refs_map[name] = index.references(name)
+    refs = [r for refs in index.references_by_name.values() for r in refs]
 
     if focus:
         symbols = [s for s in symbols if s["name"] == focus or s.get("container") == focus]
@@ -21,10 +19,11 @@ def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, 
 
     if view_type in {"composition", "connections", "requirements", "traceability", "dependencies", "state", "behavior"}:
         edges: list[dict[str, Any]] = []
-        for sym in symbols:
-            for ref in refs_map.get(sym["name"], []):
-                if ref.get("relation"):
-                    edges.append({"source": sym["name"], "target": ref["name"], "relation": ref["relation"]})
+        focus_names = {s["name"] for s in symbols}
+        for ref in refs:
+            source = ref.source or Path(ref.file).stem
+            if ref.relation and (not focus or source in focus_names or ref.name in focus_names):
+                edges.append({"source": source, "target": ref.name, "relation": ref.relation})
         if view_type == "composition":
             edges = [e for e in edges if e["relation"] in {"typed_by", "type"}]
         elif view_type == "connections":

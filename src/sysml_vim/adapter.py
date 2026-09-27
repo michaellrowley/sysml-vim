@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 from typing import Any
 
@@ -25,8 +26,16 @@ class OfficialPilotAdapter:
                 "capability": "local-fallback-only",
             }
 
+        argv = shlex.split(self.command)
+        if not argv:
+            return {
+                "ok": False,
+                "error": "SYSML_PILOT_COMMAND is empty after parsing",
+                "operation": operation,
+            }
+
         proc = subprocess.run(
-            [self.command, operation, str(workspace)],
+            [*argv, operation, str(workspace)],
             input=json.dumps(payload),
             text=True,
             capture_output=True,
