@@ -26,6 +26,11 @@ COMMANDS                                                  *sysml-vim-commands*
 :SysmlHealth                  Show backend health and capabilities.
 :SysmlLog                     Show plugin/backend log messages.
 
+`:SysmlCheck` uses the current model buffer's text, including unsaved changes.
+`:SysmlCheckWorkspace` also includes unsaved text from loaded model buffers in
+the workspace. These checks require a working RPC backend when model buffers
+have unsaved changes.
+
 ==============================================================================
 MAPPINGS                                                *sysml-vim-mappings*
 

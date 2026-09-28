@@ -839,9 +839,22 @@ endfunction
 
 function! sysml#check(...) abort
   let path = a:0 > 0 ? a:1 : expand('%:p')
-  let rpc = s:rpc_request('check', {'path': path})
+  let document_state = s:workspace_documents(path, bufnr('%'))
+  let params = {'path': path}
+  if !empty(document_state.documents)
+    let params.documents = document_state.documents
+  endif
+  let rpc = s:rpc_request('check', params)
   if get(rpc, 'ok', v:false)
     call sysml#_handle_check(0, [json_encode(rpc.result)])
+    return
+  endif
+
+  if document_state.has_modified_buffers
+    echohl ErrorMsg
+    echom 'sysml check failed; unsaved SysML text requires a working RPC backend: '
+          \ . get(get(rpc, 'error', {}), 'message', 'RPC request failed')
+    echohl None
     return
   endif
 
