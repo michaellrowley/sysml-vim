@@ -106,7 +106,12 @@ def _handle(method: str, params: dict[str, Any]) -> Any:
     if method == "view_graph":
         view_type = params.get("type", "composition")
         view = build_view(index, view_type, params.get("focus"), int(params.get("depth", 4)))
-        return render_graph_data(view, params.get("focus"), int(params.get("depth", 4)))
+        return render_graph_data(
+            view,
+            params.get("focus"),
+            int(params.get("depth", 4)),
+            int(params.get("width", 80)),
+        )
     raise LookupError(f"Unknown method: {method}")
 
 

@@ -1,4 +1,4 @@
-from sysml_vim.diagram import render_graph_data
+from sysml_vim.diagram import _display_width, render_graph_data
 
 
 def _symbol(name, kind, line, *, container=None, ancestors=(), signature=None):
@@ -65,7 +65,13 @@ def test_structural_diagram_uses_feature_compartments_and_typed_routes():
     rendered = render_graph_data(view, focus="Vehicle", depth=5)
     assert "engine : Engine" in rendered["graph"]
     assert "fuelIn : FuelPort" in rendered["graph"]
+    assert rendered["graph"].count("engine : Engine") == 1
+    assert rendered["graph"].count("fuelIn : FuelPort") == 1
     assert "Vehicle.engine -[typed_by]-> Engine" in rendered["graph"]
+    graph_lines = rendered["graph"].splitlines()
+    assert graph_lines[3].lstrip().startswith("┌")
+    assert "┐" in rendered["graph"]
+    assert "└" in rendered["graph"]
 
     nodes = {node["name"]: node for node in rendered["layout"]["nodes"]}
     assert set(nodes) == {"Vehicle", "Engine", "FuelPort"}
@@ -82,6 +88,15 @@ def test_structural_diagram_uses_feature_compartments_and_typed_routes():
 
     assert render_graph_data(view, focus="Vehicle", depth=5) == rendered
 
+    narrow = render_graph_data(view, focus="Vehicle", depth=5, max_width=56)
+    assert narrow["layout"]["width"] <= 56
+    assert max(map(_display_width, narrow["graph"].splitlines())) <= 56
+    assert set(node["name"] for node in narrow["layout"]["nodes"]) == {
+        "Vehicle",
+        "Engine",
+        "FuelPort",
+    }
+
 
 def test_graph_focus_includes_containing_element_and_outer_routes_avoid_boxes():
     view = {
@@ -96,7 +111,7 @@ def test_graph_focus_includes_containing_element_and_outer_routes_avoid_boxes():
         ],
     }
     result = render_graph_data(view)
-    assert "return routes use the outer gutter" in result["graph"]
+    assert "▲" in result["graph"]
     nodes = {node["name"]: node for node in result["layout"]["nodes"]}
     assert set(nodes) == {"A", "B"}
     assert any(edge["relation"] == "dependency" for edge in result["layout"]["edges"])
@@ -132,3 +147,28 @@ def test_layout_orders_layers_to_reduce_relationship_crossings():
 
     assert node_positions["A"] < node_positions["B"]
     assert node_positions["Y"] < node_positions["X"]
+
+
+def test_unconnected_definitions_pack_into_rows():
+    view = {
+        "type": "composition",
+        "nodes": [
+            _symbol(f"Element{index}", "part_def", index + 1)
+            for index in range(8)
+        ],
+        "edges": [],
+    }
+
+    result = render_graph_data(view)
+    nodes = result["layout"]["nodes"]
+
+    assert len({node["top"] for node in nodes}) <= 3
+    assert all(node["right"] < result["layout"]["width"] for node in nodes)
+    for index, node in enumerate(nodes):
+        for other in nodes[index + 1 :]:
+            assert (
+                node["bottom"] < other["top"]
+                or other["bottom"] < node["top"]
+                or node["right"] < other["left"]
+                or other["right"] < node["left"]
+            )

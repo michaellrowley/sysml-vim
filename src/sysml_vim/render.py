@@ -140,8 +140,13 @@ def render_text(view: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def render_graph(view: dict[str, Any], focus: str | None = None, depth: int = 4) -> str:
-    return render_graph_data(view, focus, depth)["graph"]
+def render_graph(
+    view: dict[str, Any],
+    focus: str | None = None,
+    depth: int = 4,
+    max_width: int | None = None,
+) -> str:
+    return render_graph_data(view, focus, depth, max_width)["graph"]
 
 
 def render_dot(view: dict[str, Any]) -> str:

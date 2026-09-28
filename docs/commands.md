@@ -10,7 +10,7 @@
 - `sysml completion PREFIX [--path P]`
 - `sysml query KIND [--name N] [--path P]`
 - `sysml tree [path]`
-- `sysml view TYPE [--focus E] [--depth N] [--path P] [--format text|dot|svg|json|graph|graph-json]`
+- `sysml view TYPE [--focus E] [--depth N] [--path P] [--width C] [--format text|dot|svg|json|graph|graph-json]`
 - `sysml health [--path P]`
 - `sysml parser-status`
 

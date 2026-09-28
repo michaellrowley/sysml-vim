@@ -86,9 +86,9 @@ def cmd_view(args: argparse.Namespace) -> int:
     elif args.format == "svg":
         print(render_svg(view))
     elif args.format == "graph":
-        print(render_graph(view, args.focus, args.depth))
+        print(render_graph(view, args.focus, args.depth, args.width))
     elif args.format == "graph-json":
-        _json_out(render_graph_data(view, args.focus, args.depth))
+        _json_out(render_graph_data(view, args.focus, args.depth, args.width))
     return 0
 
 
@@ -150,6 +150,7 @@ def parser() -> argparse.ArgumentParser:
     view.add_argument("type", choices=["package", "composition", "connections", "requirements", "traceability", "dependencies", "behavior", "state", "tree"])
     view.add_argument("--focus")
     view.add_argument("--depth", type=int, default=3)
+    view.add_argument("--width", type=int, default=80)
     view.add_argument("--path", default=".")
     view.add_argument(
         "--format",

@@ -26,6 +26,8 @@ Vim command:
   buffer. Definitions are shown as boxes with kind/name headers and contained
   usages in feature compartments. Forward relationships use orthogonal routes
   between boxes; backward and cyclic relationships use an outer gutter.
+  Unconnected definitions are packed into compact rows below connected
+  structures. Box labels wrap to fit the available Vim window width.
   Relationship labels are listed below the diagram.
 
 Within a graph buffer, arrow keys move to the nearest node in that direction.

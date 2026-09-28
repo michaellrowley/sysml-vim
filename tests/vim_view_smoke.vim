@@ -220,7 +220,11 @@ endif
 if join(getbufline(s:second_tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceB'
   cquit 13
 endif
-if join(getbufline(s:graph_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceA'
+let s:refreshed_graph_layout = getbufvar(s:graph_buffer, 'sysml_graph_layout', {})
+if empty(filter(
+      \ copy(get(s:refreshed_graph_layout, 'nodes', [])),
+      \ 'v:val.name ==# "UpdateFromWorkspaceA"'
+      \ ))
   cquit 27
 endif
 let s:graph_window = win_findbuf(s:graph_buffer)[0]

@@ -1309,10 +1309,16 @@ function! sysml#graph(...) abort
   endif
 
   let params = {'path': context.path, 'type': 'composition', 'depth': 5}
+  let graph_width = max([40, winwidth(0)])
+  let params.width = graph_width
   if !empty(focus)
     let params.focus = focus
   endif
-  let args = ['view', 'composition', '--path', context.path, '--format', 'graph-json', '--depth', '5']
+  let args = [
+        \ 'view', 'composition', '--path', context.path,
+        \ '--format', 'graph-json', '--depth', '5',
+        \ '--width', string(graph_width)
+        \ ]
   if !empty(focus)
     call extend(args, ['--focus', focus])
   endif

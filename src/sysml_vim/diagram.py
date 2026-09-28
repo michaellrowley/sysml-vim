@@ -16,6 +16,21 @@ _USAGE_KINDS = {
     "state_usage",
 }
 _TYPE_RELATIONS = {"type", "typed_by"}
+_ROUTE_GLYPHS = {
+    frozenset({"E", "W"}): "─",
+    frozenset({"N", "S"}): "│",
+    frozenset({"E", "S"}): "┌",
+    frozenset({"W", "S"}): "┐",
+    frozenset({"E", "N"}): "└",
+    frozenset({"W", "N"}): "┘",
+    frozenset({"E", "N", "S"}): "├",
+    frozenset({"W", "N", "S"}): "┤",
+    frozenset({"E", "W", "S"}): "┬",
+    frozenset({"E", "W", "N"}): "┴",
+    frozenset({"E", "W", "N", "S"}): "┼",
+}
+_GLYPH_ROUTES = {glyph: directions for directions, glyph in _ROUTE_GLYPHS.items()}
+_GLYPH_ROUTES.update({"┄": frozenset({"E", "W"}), "┆": frozenset({"N", "S"})})
 
 
 @dataclass(slots=True)
@@ -77,6 +92,37 @@ def _display_width(text: str) -> int:
 
 
 def _wrap(text: str, width: int) -> list[str]:
+    words = text.split()
+    if len(words) > 1:
+        result = []
+        current = ""
+        for word in words:
+            if _display_width(word) > width:
+                if current:
+                    result.append(current)
+                    current = ""
+                chunk = ""
+                chunk_width = 0
+                for character in word:
+                    character_width = _display_width(character)
+                    if chunk and chunk_width + character_width > width:
+                        result.append(chunk)
+                        chunk = ""
+                        chunk_width = 0
+                    chunk += character
+                    chunk_width += character_width
+                current = chunk
+                continue
+            candidate = f"{current} {word}".strip()
+            if current and _display_width(candidate) > width:
+                result.append(current)
+                current = word
+            else:
+                current = candidate
+        if current:
+            result.append(current)
+        return result
+
     result: list[str] = []
     current = ""
     current_width = 0
@@ -426,7 +472,10 @@ def _assign_ranks(nodes: list[DiagramNode], edges: list[DiagramEdge]) -> None:
     ]
 
 
-def _prepare_node_text(nodes: list[DiagramNode]) -> None:
+def _prepare_node_text(
+    nodes: list[DiagramNode],
+    max_content_width: int = 48,
+) -> None:
     for node in nodes:
         feature_labels = [feature.label for feature in node.features]
         longest = max(
@@ -434,7 +483,7 @@ def _prepare_node_text(nodes: list[DiagramNode]) -> None:
             + [_display_width(label) for label in feature_labels],
             default=0,
         )
-        content_width = min(48, max(12, longest))
+        content_width = min(max_content_width, max(8, longest))
         node.kind_lines = _wrap(f"«{node.kind.replace('_', ' ')}»", content_width)
         node.name_lines = _wrap(node.name, content_width)
         node.feature_lines = [
@@ -455,12 +504,22 @@ def _prepare_node_text(nodes: list[DiagramNode]) -> None:
         )
 
 
-def _position_nodes(nodes: list[DiagramNode], edges: list[DiagramEdge]) -> tuple[int, int]:
+def _position_nodes(
+    nodes: list[DiagramNode],
+    edges: list[DiagramEdge],
+    max_width: int | None = None,
+) -> tuple[int, int]:
+    node_by_id = {node.id: node for node in nodes}
+    linked_ids = {
+        node_id
+        for edge in edges
+        for node_id in (edge.source, edge.target)
+    }
+    linked_nodes = [node for node in nodes if node.id in linked_ids]
+    isolated_nodes = [node for node in nodes if node.id not in linked_ids]
     layers: dict[int, list[DiagramNode]] = defaultdict(list)
-    for node in nodes:
+    for node in linked_nodes:
         layers[node.rank].append(node)
-    if not layers:
-        return 1, 1
 
     rank_width = {
         rank: max(node.width for node in layer)
@@ -468,36 +527,72 @@ def _position_nodes(nodes: list[DiagramNode], edges: list[DiagramEdge]) -> tuple
     }
     edge_counts: dict[tuple[int, int], int] = defaultdict(int)
     for edge in edges:
-        source_rank = next(node.rank for node in nodes if node.id == edge.source)
-        target_rank = next(node.rank for node in nodes if node.id == edge.target)
+        source_rank = node_by_id[edge.source].rank
+        target_rank = node_by_id[edge.target].rank
         if target_rank == source_rank + 1:
             edge_counts[(source_rank, target_rank)] += 1
 
     x_positions: dict[int, int] = {}
-    max_rank = max(layers)
     x = 2
-    for rank in range(max_rank + 1):
-        x_positions[rank] = x
-        x += rank_width.get(rank, 0)
-        if rank < max_rank:
-            count = edge_counts.get((rank, rank + 1), 0)
-            x += max(8, count + 5)
+    if layers:
+        max_rank = max(layers)
+        for rank in range(max_rank + 1):
+            x_positions[rank] = x
+            x += rank_width.get(rank, 0)
+            if rank < max_rank:
+                count = edge_counts.get((rank, rank + 1), 0)
+                x += max(8, count + 5) if max_width is None else count + 2
 
-    content_height = 0
     for rank in sorted(layers):
-        y = 2
+        y = 0
         for node in layers[rank]:
             node.x = x_positions[rank]
             node.y = y
             y += node.height + 2
-        content_height = max(content_height, y)
-    back_edge_count = sum(
+
+    component_bottom = max(
+        (node.y + node.height for node in linked_nodes),
+        default=0,
+    )
+    outer_edge_count = sum(
         1
         for edge in edges
-        if next(node.rank for node in nodes if node.id == edge.target)
-        <= next(node.rank for node in nodes if node.id == edge.source)
+        if node_by_id[edge.target].rank != node_by_id[edge.source].rank + 1
     )
-    return x + 2, content_height + back_edge_count * 2 + 4
+    isolated_y = (
+        component_bottom + outer_edge_count * 2 + 2
+        if linked_nodes
+        else 0
+    )
+    target_width = max(
+        x + 2 if layers else 0,
+        max_width or 70,
+        max((node.width + 4 for node in isolated_nodes), default=0),
+    )
+    isolated_x = 2
+    row_y = isolated_y
+    row_height = 0
+    for node in isolated_nodes:
+        if isolated_x > 2 and isolated_x + node.width + 2 > target_width:
+            isolated_x = 2
+            row_y += row_height + 2
+            row_height = 0
+        node.x = isolated_x
+        node.y = row_y
+        isolated_x += node.width + 4
+        row_height = max(row_height, node.height)
+
+    width = max(
+        x + 2 if layers else 0,
+        max((node.x + node.width + 2 for node in isolated_nodes), default=0),
+    )
+    height = max(
+        component_bottom + outer_edge_count * 2 + 3,
+        max((node.y + node.height for node in isolated_nodes), default=0) + 2,
+        1,
+    )
+    nodes.sort(key=lambda node: (node.y, node.x, node.name.casefold()))
+    return width, height
 
 
 def _add_route(
@@ -508,38 +603,56 @@ def _add_route(
     lane: int | None = None,
     outer_y: int | None = None,
 ) -> None:
-    cells: dict[tuple[int, int], str] = {}
+    connections: dict[tuple[int, int], set[str]] = defaultdict(set)
 
     def horizontal(y: int, start_x: int, end_x: int) -> None:
         if start_x > end_x:
             start_x, end_x = end_x, start_x
         for x in range(start_x, end_x + 1):
-            cells[(x, y)] = "─"
+            if x > start_x:
+                connections[(x, y)].add("W")
+            if x < end_x:
+                connections[(x, y)].add("E")
 
     def vertical(x: int, start_y: int, end_y: int) -> None:
         if start_y > end_y:
             start_y, end_y = end_y, start_y
         for y in range(start_y, end_y + 1):
-            cells[(x, y)] = "│"
+            if y > start_y:
+                connections[(x, y)].add("N")
+            if y < end_y:
+                connections[(x, y)].add("S")
 
     if lane is not None:
         horizontal(start[1], start[0], lane)
         vertical(lane, start[1], end[1])
-        horizontal(end[1], lane, end[0] - 1)
-        cells[(end[0] - 1, end[1])] = "▶"
+        arrow_x = end[0] - 1
+        horizontal(end[1], lane, arrow_x)
+        connections.pop((arrow_x, end[1]), None)
+        edge.route = [
+            (x, y, _ROUTE_GLYPHS.get(frozenset(directions), "─"))
+            for (x, y), directions in sorted(
+                connections.items(), key=lambda item: (item[0][1], item[0][0])
+            )
+        ]
+        edge.route.append((arrow_x, end[1], "▶"))
     elif outer_y is not None:
         vertical(start[0], start[1], outer_y)
-        horizontal( min(start[0], end[0]), outer_y, max(start[0], end[0]))
+        horizontal(min(start[0], end[0]), outer_y, max(start[0], end[0]))
         vertical(end[0], end[1], outer_y)
-        cells[(end[0], end[1])] = "▲"
-
-    edge.route = [(x, y, char) for (x, y), char in sorted(cells.items(), key=lambda item: (item[0][1], item[0][0]))]
+        connections.pop(end, None)
+        edge.route = [
+            (x, y, _ROUTE_GLYPHS.get(frozenset(directions), "─"))
+            for (x, y), directions in sorted(
+                connections.items(), key=lambda item: (item[0][1], item[0][0])
+            )
+        ]
+        edge.route.append((end[0], end[1], "▲"))
 
 
 def _route_edges(
     nodes: list[DiagramNode],
     edges: list[DiagramEdge],
-    height: int,
 ) -> None:
     node_by_id = {node.id: node for node in nodes}
     source_feature_by_id = {
@@ -589,6 +702,15 @@ def _route_edges(
             edge.source_display.casefold(),
         )
     )
+    linked_nodes = {
+        node_id
+        for edge in edges
+        for node_id in (edge.source, edge.target)
+    }
+    outer_lane_y = max(
+        (node_by_id[node_id].y + node_by_id[node_id].height for node_id in linked_nodes),
+        default=0,
+    ) + 1
     for index, edge in enumerate(other):
         source = node_by_id[edge.source]
         target = node_by_id[edge.target]
@@ -600,7 +722,7 @@ def _route_edges(
             edge,
             (source_x, source_y),
             (target_x, target_y),
-            outer_y=height - (index * 2) - 2,
+            outer_y=outer_lane_y + index * 2,
         )
 
 
@@ -623,10 +745,12 @@ def _put_route(canvas: list[list[str]], x: int, y: int, character: str) -> None:
         canvas[y][x] = character
     elif character in {"▶", "▲"}:
         canvas[y][x] = character
-    elif current in {"─", "│", "┄", "┆"}:
-        canvas[y][x] = "┼" if current != character else current
-    elif current == "┼":
-        return
+    else:
+        current_directions = _GLYPH_ROUTES.get(current, frozenset())
+        next_directions = _GLYPH_ROUTES.get(character, frozenset())
+        combined = current_directions | next_directions
+        if combined:
+            canvas[y][x] = _ROUTE_GLYPHS.get(frozenset(combined), character)
 
 
 def _node_rows(node: DiagramNode) -> tuple[list[str], int, list[int]]:
@@ -724,6 +848,7 @@ def _layout_graph(
     view: dict[str, Any],
     focus: str | None,
     depth: int,
+    max_width: int | None,
 ) -> tuple[DiagramLayout, list[dict[str, Any]]]:
     symbols = list(view.get("nodes", []))
     names = {symbol.get("name") for symbol in symbols}
@@ -783,10 +908,15 @@ def _layout_graph(
 
     nodes, feature_owner = _build_diagram_nodes(symbols, edges)
     diagram_edges = _build_diagram_edges(symbols, edges, nodes, feature_owner)
-    _prepare_node_text(nodes)
     _assign_ranks(nodes, diagram_edges)
-    width, height = _position_nodes(nodes, diagram_edges)
-    _route_edges(nodes, diagram_edges, height)
+    max_content_width = (
+        48
+        if max_width is None
+        else max(8, min(48, (max_width - 14) // 3 - 4))
+    )
+    _prepare_node_text(nodes, max_content_width)
+    width, height = _position_nodes(nodes, diagram_edges, max_width)
+    _route_edges(nodes, diagram_edges)
     return DiagramLayout(nodes, diagram_edges, width, height), symbols
 
 
@@ -794,8 +924,9 @@ def render_graph_data(
     view: dict[str, Any],
     focus: str | None = None,
     depth: int = 4,
+    max_width: int | None = None,
 ) -> dict[str, Any]:
-    layout, _ = _layout_graph(view, focus, depth)
+    layout, _ = _layout_graph(view, focus, depth, max_width)
     if not layout.nodes:
         return {
             "graph": (
@@ -805,11 +936,8 @@ def render_graph_data(
             "layout": {"nodes": [], "edges": [], "width": 0, "height": 0},
         }
     title = f"View Graph: {view.get('type', 'composition')} (structural diagram)"
-    legend = [
-        "Legend: «kind» header; feature rows show contained usages and their types",
-        "Solid = type/reference; dashed = dependency; return routes use the outer gutter",
-    ]
-    header_lines = [title, *legend, ""]
+    legend = ["Feature rows show containment; arrows show relationships"]
+    header_lines = [title, legend[0], ""]
     canvas_start_line = len(header_lines) + 1
     canvas = [[" " for _ in range(layout.width)] for _ in range(layout.height)]
 
@@ -840,8 +968,11 @@ def render_graph_data(
             summary = (
                 f"- {edge.source_display} -[{edge.relation}]-> {edge.target_display}"
             )
-            lines.append(summary)
-            edge_entry_line = len(lines)
+            summary_width = max_width - 2 if max_width is not None else _display_width(summary)
+            edge_entry_line = len(lines) + 1
+            for line_index, summary_line in enumerate(_wrap(summary[2:], summary_width)):
+                prefix = "- " if line_index == 0 else "  "
+                lines.append(prefix + summary_line)
             edge_entry_lines.append(edge_entry_line)
             source_node = node_by_id[edge.source]
             target_node = node_by_id[edge.target]

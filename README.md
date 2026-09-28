@@ -16,7 +16,8 @@ The screenshots below were generated from the included example model at `/home/r
 
 Definitions appear as boxes with contained usages in feature compartments.
 Orthogonal relationship routes connect boxes, and cyclic relationships use an
-outer gutter to keep the structure readable.
+outer gutter to keep the structure readable. Unconnected definitions are
+packed into compact rows below connected structures.
 
 ## Status and conformance stance
 
