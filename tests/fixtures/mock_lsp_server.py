@@ -359,7 +359,16 @@ def read_message() -> dict[str, Any] | None:
     return json.loads(body.decode("utf-8"))
 
 
-def diagnostics_for(path: Path) -> list[dict[str, Any]]:
+def diagnostics_for(path: Path, source_text: str = "") -> list[dict[str, Any]]:
+    if "SYSML_VIM_UNSAVED_CHECK" in source_text:
+        return [
+            {
+                "severity": 1,
+                "range": source_range(0, 0, 0, 1),
+                "message": "diagnostic from unsaved buffer",
+                "source": "sysml-v2-lsp",
+            }
+        ]
     if path.name != "bad.sysml":
         return []
     return [
@@ -461,7 +470,7 @@ while True:
                     "method": "textDocument/publishDiagnostics",
                     "params": {
                         "uri": document_uri,
-                        "diagnostics": diagnostics_for(document_path),
+                        "diagnostics": diagnostics_for(document_path, text),
                     },
                 }
             )

@@ -33,6 +33,21 @@ call sysml#check(s:fixture_workspace)
 if empty(getqflist())
   cquit 2
 endif
+silent! cclose
+execute 'edit ' . fnameescape(s:fixture_workspace . '/vehicle.sysml')
+call sysml#check()
+if !empty(filter(getqflist(), 'v:val.text ==# "diagnostic from unsaved buffer"'))
+  cquit 7
+endif
+call append('$', 'SYSML_VIM_UNSAVED_CHECK')
+call sysml#check()
+if empty(filter(getqflist(), 'v:val.text ==# "diagnostic from unsaved buffer"'))
+  cquit 8
+endif
+call sysml#check_workspace(s:fixture_workspace)
+if empty(filter(getqflist(), 'v:val.text ==# "diagnostic from unsaved buffer"'))
+  cquit 9
+endif
 call sysml#graph('Vehicle')
 if bufname('%') !~# '^sysml-graph-'
   cquit 3
