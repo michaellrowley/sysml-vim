@@ -34,11 +34,28 @@ MAPPINGS                                                *sysml-vim-mappings*
 <Plug>(sysml-hover)
 <Plug>(sysml-next-diagnostic)
 <Plug>(sysml-prev-diagnostic)
+<Plug>(sysml-graph-next-node)
+<Plug>(sysml-graph-prev-node)
+<Plug>(sysml-graph-next-edge)
+<Plug>(sysml-graph-prev-edge)
+<Plug>(sysml-graph-left)
+<Plug>(sysml-graph-right)
+<Plug>(sysml-graph-up)
+<Plug>(sysml-graph-down)
+<Plug>(sysml-graph-mouse)
 
 Default mappings (if free):
   gd  -> definition
   gr  -> references
   K   -> hover
+
+In :SysmlGraph buffers, ]n / [n move to the next / previous node and
+]e / [e move to the next / previous edge. These defaults respect existing
+mappings and can be remapped through the corresponding <Plug> mappings.
+Arrow keys move to the nearest node in that direction. With mouse support
+enabled ('mouse'), hovering over a node or rendered edge selects it in
+Neovim; in Vim, click to select because Vim does not report pointer-hover
+events.
 
 ==============================================================================
 CONFIGURATION                                        *sysml-vim-configuration*

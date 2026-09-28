@@ -42,6 +42,15 @@ nnoremap <silent> <Plug>(sysml-references) :SysmlReferences<CR>
 nnoremap <silent> <Plug>(sysml-hover) :SysmlHover<CR>
 nnoremap <silent> <Plug>(sysml-next-diagnostic) ]d
 nnoremap <silent> <Plug>(sysml-prev-diagnostic) [d
+nnoremap <silent> <Plug>(sysml-graph-next-node) :call sysml#graph_navigate('node', 1)<CR>
+nnoremap <silent> <Plug>(sysml-graph-prev-node) :call sysml#graph_navigate('node', -1)<CR>
+nnoremap <silent> <Plug>(sysml-graph-next-edge) :call sysml#graph_navigate('edge', 1)<CR>
+nnoremap <silent> <Plug>(sysml-graph-prev-edge) :call sysml#graph_navigate('edge', -1)<CR>
+nnoremap <silent> <Plug>(sysml-graph-left) :call sysml#graph_move('left')<CR>
+nnoremap <silent> <Plug>(sysml-graph-right) :call sysml#graph_move('right')<CR>
+nnoremap <silent> <Plug>(sysml-graph-up) :call sysml#graph_move('up')<CR>
+nnoremap <silent> <Plug>(sysml-graph-down) :call sysml#graph_move('down')<CR>
+nnoremap <silent> <Plug>(sysml-graph-mouse) :call sysml#graph_mouse_sync('mouse')<CR>
 
 if !hasmapto('<Plug>(sysml-definition)')
   nmap gd <Plug>(sysml-definition)

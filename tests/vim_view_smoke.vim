@@ -61,6 +61,71 @@ call sysml#graph()
 if join(getline(1, '$'), "\n") !~# 'Vehicle:part_def'
   cquit 11
 endif
+if empty(maparg(']n', 'n')) || empty(maparg('[n', 'n'))
+      \ || empty(maparg(']e', 'n')) || empty(maparg('[e', 'n'))
+      \ || empty(maparg('<Left>', 'n')) || empty(maparg('<Right>', 'n'))
+      \ || empty(maparg('<Up>', 'n')) || empty(maparg('<Down>', 'n'))
+  cquit 14
+endif
+call cursor(1, 1)
+normal ]n
+if getline('.') !~# '│.*:.*│'
+  cquit 15
+endif
+let s:first_node_position = [line('.'), col('.')]
+normal ]n
+if [line('.'), col('.')] ==# s:first_node_position
+  cquit 18
+endif
+normal ]e
+if getline('.') !~# '^- '
+  cquit 16
+endif
+normal [n
+if getline('.') !~# '│.*:.*│'
+  cquit 17
+endif
+let s:selected_node_position = [line('.'), col('.')]
+call cursor(line('.'), col('.') + 1)
+call sysml#graph_mouse_sync()
+if [line('.'), col('.')] !=# s:selected_node_position
+  cquit 19
+endif
+normal ]e
+let s:selected_edge_position = [line('.'), col('.')]
+call cursor(line('.'), col('.') + 1)
+call sysml#graph_mouse_sync()
+if [line('.'), col('.')] !=# s:selected_edge_position
+  cquit 20
+endif
+let s:edge_header_line = search('^Edges:$', 'n')
+let s:edge_route_selected = 0
+for s:graph_line in range(3, s:edge_header_line - 1)
+  let s:arrow_column = match(getline(s:graph_line), '▶')
+  if s:arrow_column >= 0
+    call cursor(s:graph_line, s:arrow_column + 1)
+    let s:edge_route_position = [line('.'), col('.')]
+    call sysml#graph_mouse_sync()
+    if [line('.'), col('.')] ==# s:edge_route_position
+          \ && get(get(b:, 'sysml_graph_selection', {}), 'kind', '') ==# 'edge'
+      let s:edge_route_selected = 1
+      break
+    endif
+  endif
+endfor
+if !s:edge_route_selected
+  cquit 23
+endif
+call cursor(1, 1)
+normal ]n
+let s:node_before_arrow = [line('.'), col('.')]
+execute "normal \<Right>"
+if [line('.'), col('.')] ==# s:node_before_arrow
+  cquit 21
+endif
+if getline('.') !~# '│.*:.*│'
+  cquit 22
+endif
 
 let s:workspace_b = tempname()
 call mkdir(s:workspace_b, 'p')

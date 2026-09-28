@@ -4,6 +4,9 @@ let s:rpc_seq = 0
 let s:view_sessions = {}
 let s:view_refresh_timer = -1
 let s:view_refresh_paths = {}
+let s:graph_buffers = {}
+let s:graph_mousemove_original = -1
+let s:graph_mousemove_changed = 0
 
 function! s:sysml_word() abort
   return expand('<cword>')
@@ -303,6 +306,7 @@ function! s:replace_buffer_lines(buffer_number, lines) abort
   let replacement_lines = empty(a:lines) ? [''] : a:lines
   let previous_line_count = len(getbufline(a:buffer_number, 1, '$'))
   call setbufline(a:buffer_number, 1, replacement_lines)
+  call setbufvar(a:buffer_number, 'sysml_graph_layout', {})
   if previous_line_count > len(replacement_lines) && exists('*deletebufline')
     call deletebufline(a:buffer_number, len(replacement_lines) + 1, previous_line_count)
   endif
@@ -337,6 +341,423 @@ function! s:open_view_buffer(name, lines, session) abort
   let s:view_sessions[string(bufnr('%'))] = copy(a:session)
   let b:sysml_source_buffer = a:session.source_buffer
   let b:sysml_workspace_path = a:session.path
+  let b:sysml_view_method = a:session.method
+  if a:session.method ==# 'view_graph'
+    setlocal cursorline
+    call s:setup_graph_buffer()
+    if empty(maparg(']n', 'n'))
+      nmap <buffer> ]n <Plug>(sysml-graph-next-node)
+    endif
+    if empty(maparg('[n', 'n'))
+      nmap <buffer> [n <Plug>(sysml-graph-prev-node)
+    endif
+    if empty(maparg(']e', 'n'))
+      nmap <buffer> ]e <Plug>(sysml-graph-next-edge)
+    endif
+    if empty(maparg('[e', 'n'))
+      nmap <buffer> [e <Plug>(sysml-graph-prev-edge)
+    endif
+    call s:select_graph_node(get(a:session, 'focus', ''))
+  endif
+endfunction
+
+function! s:graph_nodes() abort
+  let nodes = []
+  " The emitted box label identifies each node and its hit-test bounds.
+  for line_number in range(1, line('$'))
+    let text = getline(line_number)
+    let search_from = 0
+    let left_border = stridx(text, '│', search_from)
+    while left_border >= 0
+      let label_start = left_border + strlen('│') + 1
+      let right_border = stridx(text, '│', label_start)
+      if right_border < 0
+        break
+      endif
+      let label = trim(strpart(text, label_start, right_border - label_start))
+      let separator = stridx(label, ':')
+      if separator > 0
+        call add(nodes, {
+              \ 'name': trim(strpart(label, 0, separator)),
+              \ 'line': line_number,
+              \ 'col': label_start + 1,
+              \ 'top': line_number - 1,
+              \ 'bottom': line_number + 1,
+              \ 'left': strdisplaywidth(strpart(text, 0, left_border)) + 1,
+              \ 'right': strdisplaywidth(strpart(text, 0, right_border)) + 1
+              \ })
+      endif
+      let search_from = right_border + strlen('│')
+      let left_border = stridx(text, '│', search_from)
+    endwhile
+  endfor
+  return nodes
+endfunction
+
+function! s:graph_positions(kind) abort
+  let positions = []
+  if a:kind ==# 'node'
+    for node in s:graph_layout().nodes
+      call add(positions, [node.line, node.col])
+    endfor
+    return positions
+  endif
+
+  let in_edges = 0
+  for line_number in range(1, line('$'))
+    let text = getline(line_number)
+    if text ==# 'Edges:'
+      let in_edges = 1
+    elseif in_edges && text =~# '^- '
+      let edge_start = match(text, '- \zs\S')
+      if edge_start >= 0
+        call add(positions, [line_number, edge_start + 1])
+      endif
+    endif
+  endfor
+  return positions
+endfunction
+
+function! s:graph_edges(nodes) abort
+  let nodes_by_name = {}
+  for node in a:nodes
+    let nodes_by_name[node.name] = node
+  endfor
+
+  let edges = []
+  let in_edges = 0
+  for line_number in range(1, line('$'))
+    let text = getline(line_number)
+    if text ==# 'Edges:'
+      let in_edges = 1
+      continue
+    endif
+    if !in_edges || text !~# '^- '
+      continue
+    endif
+
+    let edge_text = strpart(text, 2)
+    let relation_start = stridx(edge_text, ' -[')
+    if relation_start < 0
+      continue
+    endif
+    let relation_end = stridx(edge_text, ']-> ', relation_start + 3)
+    if relation_end < 0
+      continue
+    endif
+    let source_name = trim(strpart(edge_text, 0, relation_start))
+    let relation = strpart(edge_text, relation_start + 3, relation_end - relation_start - 3)
+    let target_name = trim(strpart(edge_text, relation_end + 4))
+    if !has_key(nodes_by_name, source_name) || !has_key(nodes_by_name, target_name)
+      continue
+    endif
+
+    let source = nodes_by_name[source_name]
+    let target = nodes_by_name[target_name]
+    let box_width = source.right - source.left + 1
+    " Mirror the renderer's midpoint routing to map pointer hits to visible edges.
+    let start_x = source.left - 1 + box_width
+    let end_x = target.left - 2
+    let mid_x = (start_x + end_x) / 2
+
+    let edge_start = match(text, '- \zs\S')
+    call add(edges, {
+          \ 'source': source_name,
+          \ 'target': target_name,
+          \ 'relation': relation,
+          \ 'line': line_number,
+          \ 'col': edge_start + 1,
+          \ 'source_line': source.line,
+          \ 'target_line': target.line,
+          \ 'start_x': start_x,
+          \ 'end_x': end_x,
+          \ 'mid_x': mid_x
+          \ })
+  endfor
+  return edges
+endfunction
+
+function! s:edge_contains(edge, line_number, column) abort
+  if a:line_number == a:edge.source_line
+        \ && a:column >= a:edge.start_x + 1
+        \ && a:column <= a:edge.mid_x
+    return 1
+  endif
+  if a:line_number >= min([a:edge.source_line, a:edge.target_line])
+        \ && a:line_number <= max([a:edge.source_line, a:edge.target_line])
+        \ && a:column == a:edge.mid_x + 1
+    return 1
+  endif
+  return a:line_number == a:edge.target_line
+        \ && a:column >= a:edge.mid_x + 1
+        \ && a:column <= a:edge.end_x + 1
+endfunction
+
+function! s:graph_layout() abort
+  " Mouse movement is frequent; buffer refresh invalidates this parsed layout.
+  if !exists('b:sysml_graph_layout') || empty(b:sysml_graph_layout)
+    let nodes = s:graph_nodes()
+    let b:sysml_graph_layout = {'nodes': nodes, 'edges': s:graph_edges(nodes)}
+  endif
+  return b:sysml_graph_layout
+endfunction
+
+function! s:graph_set_cursor(line_number, column) abort
+  if line('.') == a:line_number && col('.') == a:column
+    return
+  endif
+  let b:sysml_graph_syncing = 1
+  try
+    call cursor(a:line_number, a:column)
+  finally
+    let b:sysml_graph_syncing = 0
+  endtry
+endfunction
+
+function! s:select_graph_node(focus) abort
+  let nodes = s:graph_layout().nodes
+  if empty(nodes)
+    return
+  endif
+  if !empty(a:focus)
+    for node in nodes
+      if node.name ==# a:focus
+        let b:sysml_graph_selection = {'kind': 'node', 'name': node.name}
+        call s:graph_set_cursor(node.line, node.col)
+        return
+      endif
+    endfor
+  endif
+  let b:sysml_graph_selection = {'kind': 'node', 'name': nodes[0].name}
+  call s:graph_set_cursor(nodes[0].line, nodes[0].col)
+endfunction
+
+function! s:setup_graph_buffer() abort
+  let buffer_number = bufnr('%')
+  let buffer_key = string(buffer_number)
+  if has_key(s:graph_buffers, buffer_key)
+    return
+  endif
+
+  " Neovim needs this option for <MouseMove>; restore it after the last graph closes.
+  if empty(s:graph_buffers) && exists('+mousemoveevent')
+    let s:graph_mousemove_original = &mousemoveevent
+    let s:graph_mousemove_changed = !&mousemoveevent
+    if s:graph_mousemove_changed
+      let &mousemoveevent = 1
+    endif
+  endif
+  let s:graph_buffers[buffer_key] = 1
+  augroup sysml_graph_navigation
+    autocmd CursorMoved <buffer> call sysml#graph_mouse_sync()
+    autocmd BufWipeout <buffer> call sysml#_graph_buffer_wiped(str2nr(expand('<abuf>')))
+  augroup END
+
+  let graph_mappings = {
+        \ '<Left>': '<Plug>(sysml-graph-left)',
+        \ '<Right>': '<Plug>(sysml-graph-right)',
+        \ '<Up>': '<Plug>(sysml-graph-up)',
+        \ '<Down>': '<Plug>(sysml-graph-down)'
+        \ }
+  for [key, mapping] in items(graph_mappings)
+    if empty(maparg(key, 'n'))
+      execute 'nmap <buffer> ' . key . ' ' . mapping
+    endif
+  endfor
+  if exists('+mousemoveevent') && empty(maparg('<MouseMove>', 'n'))
+    nmap <buffer> <MouseMove> <Plug>(sysml-graph-mouse)
+  endif
+endfunction
+
+function! sysml#_graph_buffer_wiped(buffer_number) abort
+  let buffer_key = string(a:buffer_number)
+  if !has_key(s:graph_buffers, buffer_key)
+    return
+  endif
+  call remove(s:graph_buffers, buffer_key)
+  if empty(s:graph_buffers)
+        \ && s:graph_mousemove_changed
+        \ && exists('+mousemoveevent')
+        \ && &mousemoveevent
+    let &mousemoveevent = s:graph_mousemove_original
+  endif
+  let s:graph_mousemove_original = -1
+  let s:graph_mousemove_changed = 0
+endfunction
+
+function! sysml#graph_mouse_sync(...) abort
+  if get(b:, 'sysml_view_method', '') !=# 'view_graph'
+        \ || get(b:, 'sysml_graph_syncing', 0)
+    return
+  endif
+
+  if a:0 && a:1 ==# 'mouse'
+    if !exists('*getmousepos')
+      return
+    endif
+    " <MouseMove> does not move Vim's cursor, so resolve the pointer's actual window cell.
+    let mouse = getmousepos()
+    if get(mouse, 'winid', 0) != win_getid()
+          \ || get(mouse, 'line', 0) < 1
+          \ || get(mouse, 'column', 0) < 1
+      return
+    endif
+    let current_line = mouse.line
+    let current_column = virtcol([mouse.line, mouse.column])
+  else
+    let current_line = line('.')
+    let current_column = virtcol('.')
+  endif
+  let layout = s:graph_layout()
+  unlet! b:sysml_graph_selection
+  for node in layout.nodes
+    if current_line >= node.top && current_line <= node.bottom
+          \ && current_column >= node.left && current_column <= node.right
+      let b:sysml_graph_selection = {'kind': 'node', 'name': node.name}
+      call s:graph_set_cursor(node.line, node.col)
+      return
+    endif
+  endfor
+
+  let text = getline(current_line)
+  if text =~# '^- '
+    let edge_start = match(text, '- \zs\S')
+    if edge_start >= 0
+      for edge in layout.edges
+        if edge.line == current_line
+          let b:sysml_graph_selection = {
+                \ 'kind': 'edge',
+                \ 'source': edge.source,
+                \ 'relation': edge.relation,
+                \ 'target': edge.target
+                \ }
+          call s:graph_set_cursor(current_line, edge.col)
+          return
+        endif
+      endfor
+      call s:graph_set_cursor(current_line, edge_start + 1)
+      return
+    endif
+  endif
+
+  for edge in layout.edges
+    if s:edge_contains(edge, current_line, current_column)
+      let b:sysml_graph_selection = {
+            \ 'kind': 'edge',
+            \ 'source': edge.source,
+            \ 'relation': edge.relation,
+            \ 'target': edge.target
+            \ }
+      return
+    endif
+  endfor
+endfunction
+
+function! sysml#graph_move(direction) abort
+  if get(b:, 'sysml_view_method', '') !=# 'view_graph'
+    echohl WarningMsg
+    echom 'sysml graph navigation is only available in a graph view'
+    echohl None
+    return
+  endif
+  if index(['left', 'right', 'up', 'down'], a:direction) < 0
+    echohl ErrorMsg
+    echom 'sysml graph movement expects left, right, up, or down'
+    echohl None
+    return
+  endif
+
+  let nodes = s:graph_layout().nodes
+  if empty(nodes)
+    echohl WarningMsg
+    echom 'sysml graph has no nodes'
+    echohl None
+    return
+  endif
+
+  let current = {'x': virtcol('.'), 'y': line('.')}
+  for node in nodes
+    if current.y >= node.top && current.y <= node.bottom
+          \ && current.x >= node.left && current.x <= node.right
+      let current = {'x': (node.left + node.right) / 2, 'y': node.line}
+      break
+    endif
+  endfor
+
+  let target = {}
+  let best_score = -1
+  " Stay in the requested half-plane and prefer candidates aligned with that axis.
+  for node in nodes
+    let x_delta = node.left + (node.right - node.left) / 2 - current.x
+    let y_delta = node.line - current.y
+    if a:direction ==# 'left' && x_delta >= 0
+          \ || a:direction ==# 'right' && x_delta <= 0
+          \ || a:direction ==# 'up' && y_delta >= 0
+          \ || a:direction ==# 'down' && y_delta <= 0
+      continue
+    endif
+
+    if a:direction ==# 'left' || a:direction ==# 'right'
+      let primary = abs(x_delta)
+      let secondary = abs(y_delta)
+    else
+      let primary = abs(y_delta)
+      let secondary = abs(x_delta)
+    endif
+    let score = primary * primary + 3 * secondary * secondary
+    if best_score < 0 || score < best_score
+      let best_score = score
+      let target = node
+    endif
+  endfor
+
+  if !empty(target)
+    let b:sysml_graph_selection = {'kind': 'node', 'name': target.name}
+    call s:graph_set_cursor(target.line, target.col)
+  endif
+endfunction
+
+function! sysml#graph_navigate(kind, direction) abort
+  if get(b:, 'sysml_view_method', '') !=# 'view_graph'
+    echohl WarningMsg
+    echom 'sysml graph navigation is only available in a graph view'
+    echohl None
+    return
+  endif
+  if index(['node', 'edge'], a:kind) < 0
+    echohl ErrorMsg
+    echom 'sysml graph navigation expects node or edge'
+    echohl None
+    return
+  endif
+
+  let positions = s:graph_positions(a:kind)
+  if empty(positions)
+    echohl WarningMsg
+    echom 'sysml graph has no ' . a:kind . 's'
+    echohl None
+    return
+  endif
+
+  let current = [line('.'), col('.')]
+  if a:direction > 0
+    for position in positions
+      if position[0] > current[0] || (position[0] == current[0] && position[1] > current[1])
+        call cursor(position[0], position[1])
+        return
+      endif
+    endfor
+    let target = positions[0]
+  else
+    for position in reverse(copy(positions))
+      if position[0] < current[0] || (position[0] == current[0] && position[1] < current[1])
+        call cursor(position[0], position[1])
+        return
+      endif
+    endfor
+    let target = positions[-1]
+  endif
+  call cursor(target[0], target[1])
 endfunction
 
 function! sysml#_schedule_view_refresh(source_buffer) abort
