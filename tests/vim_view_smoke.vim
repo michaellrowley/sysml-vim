@@ -183,6 +183,57 @@ if getline('.') !~# '│.*│'
   cquit 22
 endif
 
+let s:navigation_nodes = get(get(b:, 'sysml_graph_layout', {}), 'nodes', [])
+let s:leftmost_node = {}
+let s:max_node_right = 0
+for s:node in s:navigation_nodes
+  let s:center_x = s:node.left + (s:node.right - s:node.left) / 2
+  if empty(s:leftmost_node)
+        \ || s:center_x < s:leftmost_node.left
+              \ + (s:leftmost_node.right - s:leftmost_node.left) / 2
+    let s:leftmost_node = s:node
+  endif
+  let s:max_node_right = max([s:max_node_right, s:node.right])
+endfor
+let b:sysml_graph_selection = {
+      \ 'kind': 'node',
+      \ 'id': s:leftmost_node.id,
+      \ 'name': s:leftmost_node.name
+      \ }
+call cursor(s:leftmost_node.line, s:leftmost_node.col)
+if virtcol('.') < s:leftmost_node.left || virtcol('.') > s:leftmost_node.right
+  cquit 28
+endif
+let s:current_node = s:leftmost_node
+let s:navigation_steps = 0
+while s:navigation_steps < len(s:navigation_nodes)
+  call sysml#graph_move('right')
+  let s:selection_id = get(get(b:, 'sysml_graph_selection', {}), 'id', '')
+  if s:selection_id ==# s:current_node.id
+    break
+  endif
+  let s:next_node = {}
+  for s:node in s:navigation_nodes
+    if s:node.id ==# s:selection_id
+      let s:next_node = s:node
+      break
+    endif
+  endfor
+  if empty(s:next_node)
+    cquit 29
+  endif
+  if s:next_node.left + (s:next_node.right - s:next_node.left) / 2
+        \ <= s:current_node.left
+              \ + (s:current_node.right - s:current_node.left) / 2
+    cquit 30
+  endif
+  let s:current_node = s:next_node
+  let s:navigation_steps += 1
+endwhile
+if s:current_node.right != s:max_node_right
+  cquit 31
+endif
+
 let s:workspace_b = tempname()
 call mkdir(s:workspace_b, 'p')
 let s:second_source_file = s:workspace_b . '/links.sysml'

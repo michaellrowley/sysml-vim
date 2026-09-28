@@ -792,6 +792,14 @@ def _byte_column(line: str, display_column: int) -> int:
     return byte_column
 
 
+def _canvas_byte_column(canvas_row: list[str], display_column: int) -> int:
+    return 1 + sum(
+        len(character.encode("utf-8"))
+        for character in canvas_row[: display_column - 1]
+        if character
+    )
+
+
 def _draw_nodes(
     canvas: list[list[str]],
     nodes: list[DiagramNode],
@@ -803,15 +811,15 @@ def _draw_nodes(
         for row_index, row in enumerate(rows):
             _canvas_text(canvas, node.x, node.y + row_index, row)
         name_line = node.y + name_offset
-        name_row = rows[name_offset]
+        name_row = canvas[name_line]
         node_top = canvas_start_line + node.y
-        left_byte = node.x + _byte_column(name_row, 1)
-        right_byte = node.x + _byte_column(name_row, node.width)
-        name_byte = node.x + _byte_column(name_row, 3)
+        left_byte = _canvas_byte_column(name_row, node.x + 1)
+        right_byte = _canvas_byte_column(name_row, node.x + node.width)
+        name_byte = _canvas_byte_column(name_row, node.x + 3)
         features = []
         for feature in node.features:
             feature_line = canvas_start_line + node.y + feature.line_index
-            feature_row = rows[feature.line_index]
+            feature_row = canvas[node.y + feature.line_index]
             features.append(
                 {
                     "id": feature.id,
@@ -819,7 +827,7 @@ def _draw_nodes(
                     "kind": feature.kind,
                     "label": feature.label,
                     "line": feature_line,
-                    "col": node.x + _byte_column(feature_row, 3),
+                    "col": _canvas_byte_column(feature_row, node.x + 3),
                 }
             )
         node_metadata.append(

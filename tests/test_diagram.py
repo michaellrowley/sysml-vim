@@ -77,6 +77,11 @@ def test_structural_diagram_uses_feature_compartments_and_typed_routes():
     assert set(nodes) == {"Vehicle", "Engine", "FuelPort"}
     assert len(nodes["Vehicle"]["features"]) == 1
     assert len(nodes["Engine"]["features"]) == 1
+    graph_lines = rendered["graph"].splitlines()
+    for node in nodes.values():
+        node_line = graph_lines[node["line"] - 1]
+        name_offset = node_line.index(node["name"])
+        assert node["col"] == len(node_line[:name_offset].encode("utf-8")) + 1
 
     for edge in rendered["layout"]["edges"]:
         for line, column in edge["route_cells"]:

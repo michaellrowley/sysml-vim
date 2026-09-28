@@ -815,7 +815,9 @@ function! s:graph_highlight_selection() abort
   let positions = []
   if get(selection, 'kind', '') ==# 'node'
     for node in s:graph_layout().nodes
-      if node.name ==# get(selection, 'name', '')
+      if (!empty(get(selection, 'id', '')) && node.id ==# selection.id)
+            \ || (empty(get(selection, 'id', ''))
+            \ && node.name ==# get(selection, 'name', ''))
         for line_number in range(node.top, node.bottom)
           let first_byte = s:graph_byte_column(line_number, node.left)
           let end_byte = s:graph_byte_column(line_number, node.right + 1)
@@ -868,14 +870,22 @@ function! s:select_graph_node(focus) abort
   if !empty(a:focus)
     for node in nodes
       if node.name ==# a:focus
-        let b:sysml_graph_selection = {'kind': 'node', 'name': node.name}
+        let b:sysml_graph_selection = {
+              \ 'kind': 'node',
+              \ 'id': node.id,
+              \ 'name': node.name
+              \ }
         call s:graph_highlight_selection()
         call s:graph_set_cursor(node.line, node.col)
         return
       endif
     endfor
   endif
-  let b:sysml_graph_selection = {'kind': 'node', 'name': nodes[0].name}
+  let b:sysml_graph_selection = {
+        \ 'kind': 'node',
+        \ 'id': nodes[0].id,
+        \ 'name': nodes[0].name
+        \ }
   call s:graph_highlight_selection()
   call s:graph_set_cursor(nodes[0].line, nodes[0].col)
 endfunction
@@ -962,7 +972,11 @@ function! sysml#graph_mouse_sync(...) abort
   for node in layout.nodes
     if current_line >= node.top && current_line <= node.bottom
           \ && current_column >= node.left && current_column <= node.right
-      let b:sysml_graph_selection = {'kind': 'node', 'name': node.name}
+      let b:sysml_graph_selection = {
+            \ 'kind': 'node',
+            \ 'id': node.id,
+            \ 'name': node.name
+            \ }
       call s:graph_highlight_selection()
       call s:graph_set_cursor(node.line, node.col)
       return
@@ -1028,13 +1042,32 @@ function! sysml#graph_move(direction) abort
   endif
 
   let current = {'x': virtcol('.'), 'y': line('.')}
+  let current_node = {}
   for node in nodes
     if current.y >= node.top && current.y <= node.bottom
           \ && current.x >= node.left && current.x <= node.right
-      let current = {'x': (node.left + node.right) / 2, 'y': node.line}
+      let current_node = node
       break
     endif
   endfor
+  if empty(current_node)
+    let selection = get(b:, 'sysml_graph_selection', {})
+    for node in nodes
+      if (!empty(get(selection, 'id', '')) && node.id ==# selection.id)
+            \ || (empty(get(selection, 'id', ''))
+            \ && get(selection, 'kind', '') ==# 'node'
+            \ && node.name ==# get(selection, 'name', ''))
+        let current_node = node
+        break
+      endif
+    endfor
+  endif
+  if !empty(current_node)
+    let current = {
+          \ 'x': current_node.left + (current_node.right - current_node.left) / 2,
+          \ 'y': current_node.line
+          \ }
+  endif
 
   let target = {}
   let best_score = -1
@@ -1064,7 +1097,11 @@ function! sysml#graph_move(direction) abort
   endfor
 
   if !empty(target)
-    let b:sysml_graph_selection = {'kind': 'node', 'name': target.name}
+    let b:sysml_graph_selection = {
+          \ 'kind': 'node',
+          \ 'id': target.id,
+          \ 'name': target.name
+          \ }
     call s:graph_highlight_selection()
     call s:graph_set_cursor(target.line, target.col)
   endif
