@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 from .adapter import ParserBackendError, SysMLLspAdapter
+from .diagram import render_graph_data
 from .render import build_view, render_dot, render_graph, render_svg, render_text
 from .workspace import WorkspaceIndex
 
@@ -86,6 +87,8 @@ def cmd_view(args: argparse.Namespace) -> int:
         print(render_svg(view))
     elif args.format == "graph":
         print(render_graph(view, args.focus, args.depth))
+    elif args.format == "graph-json":
+        _json_out(render_graph_data(view, args.focus, args.depth))
     return 0
 
 
@@ -148,7 +151,11 @@ def parser() -> argparse.ArgumentParser:
     view.add_argument("--focus")
     view.add_argument("--depth", type=int, default=3)
     view.add_argument("--path", default=".")
-    view.add_argument("--format", choices=["text", "dot", "svg", "json", "graph"], default="text")
+    view.add_argument(
+        "--format",
+        choices=["text", "dot", "svg", "json", "graph", "graph-json"],
+        default="text",
+    )
     view.set_defaults(func=cmd_view)
 
     health = sub.add_parser("health", help="backend health report")

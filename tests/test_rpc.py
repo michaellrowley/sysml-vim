@@ -149,6 +149,8 @@ def test_rpc_view_text_and_health_report_parser_capabilities():
         proc.stdin.flush()
         graph_resp = json.loads(proc.stdout.readline())
         assert "View Graph: composition" in graph_resp["result"]["graph"]
+        assert graph_resp["result"]["layout"]["nodes"]
+        assert graph_resp["result"]["layout"]["edges"]
 
         health_req = {
             "jsonrpc": "2.0",
