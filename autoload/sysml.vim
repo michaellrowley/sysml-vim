@@ -363,6 +363,7 @@ endfunction
 
 function! s:graph_nodes() abort
   let nodes = []
+  " The emitted box label identifies each node and its hit-test bounds.
   for line_number in range(1, line('$'))
     let text = getline(line_number)
     let search_from = 0
@@ -454,6 +455,7 @@ function! s:graph_edges(nodes) abort
     let source = nodes_by_name[source_name]
     let target = nodes_by_name[target_name]
     let box_width = source.right - source.left + 1
+    " Mirror the renderer's midpoint routing to map pointer hits to visible edges.
     let start_x = source.left - 1 + box_width
     let end_x = target.left - 2
     let mid_x = (start_x + end_x) / 2
@@ -492,6 +494,7 @@ function! s:edge_contains(edge, line_number, column) abort
 endfunction
 
 function! s:graph_layout() abort
+  " Mouse movement is frequent; buffer refresh invalidates this parsed layout.
   if !exists('b:sysml_graph_layout') || empty(b:sysml_graph_layout)
     let nodes = s:graph_nodes()
     let b:sysml_graph_layout = {'nodes': nodes, 'edges': s:graph_edges(nodes)}
@@ -536,6 +539,7 @@ function! s:setup_graph_buffer() abort
     return
   endif
 
+  " Neovim needs this option for <MouseMove>; restore it after the last graph closes.
   if empty(s:graph_buffers) && exists('+mousemoveevent')
     let s:graph_mousemove_original = &mousemoveevent
     let s:graph_mousemove_changed = !&mousemoveevent
@@ -591,6 +595,7 @@ function! sysml#graph_mouse_sync(...) abort
     if !exists('*getmousepos')
       return
     endif
+    " <MouseMove> does not move Vim's cursor, so resolve the pointer's actual window cell.
     let mouse = getmousepos()
     if get(mouse, 'winid', 0) != win_getid()
           \ || get(mouse, 'line', 0) < 1
@@ -681,6 +686,7 @@ function! sysml#graph_move(direction) abort
 
   let target = {}
   let best_score = -1
+  " Stay in the requested half-plane and prefer candidates aligned with that axis.
   for node in nodes
     let x_delta = node.left + (node.right - node.left) / 2 - current.x
     let y_delta = node.line - current.y
