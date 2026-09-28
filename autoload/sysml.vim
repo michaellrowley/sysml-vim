@@ -343,7 +343,7 @@ function! s:open_view_buffer(name, lines, session) abort
   let b:sysml_workspace_path = a:session.path
   let b:sysml_view_method = a:session.method
   if a:session.method ==# 'view_graph'
-    setlocal cursorline
+    setlocal nocursorline
     call s:setup_graph_buffer()
     if empty(maparg(']n', 'n'))
       nmap <buffer> ]n <Plug>(sysml-graph-next-node)
@@ -384,7 +384,9 @@ function! s:graph_nodes() abort
               \ 'top': line_number - 1,
               \ 'bottom': line_number + 1,
               \ 'left': strdisplaywidth(strpart(text, 0, left_border)) + 1,
-              \ 'right': strdisplaywidth(strpart(text, 0, right_border)) + 1
+              \ 'right': strdisplaywidth(strpart(text, 0, right_border)) + 1,
+              \ 'left_col': left_border + 1,
+              \ 'right_col': right_border + 1
               \ })
       endif
       let search_from = right_border + strlen('│')
@@ -514,6 +516,41 @@ function! s:graph_set_cursor(line_number, column) abort
   endtry
 endfunction
 
+function! s:graph_highlight_selection() abort
+  if exists('w:sysml_graph_selection_match')
+    call matchdelete(w:sysml_graph_selection_match)
+    unlet w:sysml_graph_selection_match
+  endif
+
+  let selection = get(b:, 'sysml_graph_selection', {})
+  let positions = []
+  if get(selection, 'kind', '') ==# 'node'
+    for node in s:graph_layout().nodes
+      if node.name ==# get(selection, 'name', '')
+        call add(positions, [
+              \ node.line,
+              \ node.left_col,
+              \ node.right_col - node.left_col + strlen('│')
+              \ ])
+        break
+      endif
+    endfor
+  elseif get(selection, 'kind', '') ==# 'edge'
+    for edge in s:graph_layout().edges
+      if edge.source ==# get(selection, 'source', '')
+            \ && edge.relation ==# get(selection, 'relation', '')
+            \ && edge.target ==# get(selection, 'target', '')
+        call add(positions, [edge.line, 1, strlen(getline(edge.line))])
+        break
+      endif
+    endfor
+  endif
+
+  if !empty(positions)
+    let w:sysml_graph_selection_match = matchaddpos('CursorLine', positions)
+  endif
+endfunction
+
 function! s:select_graph_node(focus) abort
   let nodes = s:graph_layout().nodes
   if empty(nodes)
@@ -523,12 +560,14 @@ function! s:select_graph_node(focus) abort
     for node in nodes
       if node.name ==# a:focus
         let b:sysml_graph_selection = {'kind': 'node', 'name': node.name}
+        call s:graph_highlight_selection()
         call s:graph_set_cursor(node.line, node.col)
         return
       endif
     endfor
   endif
   let b:sysml_graph_selection = {'kind': 'node', 'name': nodes[0].name}
+  call s:graph_highlight_selection()
   call s:graph_set_cursor(nodes[0].line, nodes[0].col)
 endfunction
 
@@ -610,10 +649,12 @@ function! sysml#graph_mouse_sync(...) abort
   endif
   let layout = s:graph_layout()
   unlet! b:sysml_graph_selection
+  call s:graph_highlight_selection()
   for node in layout.nodes
     if current_line >= node.top && current_line <= node.bottom
           \ && current_column >= node.left && current_column <= node.right
       let b:sysml_graph_selection = {'kind': 'node', 'name': node.name}
+      call s:graph_highlight_selection()
       call s:graph_set_cursor(node.line, node.col)
       return
     endif
@@ -631,6 +672,7 @@ function! sysml#graph_mouse_sync(...) abort
                 \ 'relation': edge.relation,
                 \ 'target': edge.target
                 \ }
+          call s:graph_highlight_selection()
           call s:graph_set_cursor(current_line, edge.col)
           return
         endif
@@ -648,6 +690,7 @@ function! sysml#graph_mouse_sync(...) abort
             \ 'relation': edge.relation,
             \ 'target': edge.target
             \ }
+      call s:graph_highlight_selection()
       return
     endif
   endfor
@@ -713,6 +756,7 @@ function! sysml#graph_move(direction) abort
 
   if !empty(target)
     let b:sysml_graph_selection = {'kind': 'node', 'name': target.name}
+    call s:graph_highlight_selection()
     call s:graph_set_cursor(target.line, target.col)
   endif
 endfunction

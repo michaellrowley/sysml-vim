@@ -27,5 +27,6 @@ Within a graph buffer, arrow keys move to the nearest node in that direction.
 Use `]n` / `[n` to move through nodes in layout order and `]e` / `[e` to move
 through edges. With mouse support enabled (`mouse=a`), hovering over a node or
 rendered edge selects it in Neovim; in Vim, click to select because Vim does
-not report pointer-hover events. The cursorline highlights the current
-selection.
+not report pointer-hover events. Selection highlighting is limited to the
+selected node's box or the selected edge's entry, rather than extending across
+the full screen.

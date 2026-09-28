@@ -61,6 +61,31 @@ call sysml#graph()
 if join(getline(1, '$'), "\n") !~# 'Vehicle:part_def'
   cquit 11
 endif
+let s:selection_match_id = get(w:, 'sysml_graph_selection_match', -1)
+let s:selection_match = {}
+for s:match in getmatches()
+  if s:match.id == s:selection_match_id
+    let s:selection_match = s:match
+    break
+  endif
+endfor
+let s:selected_node = {}
+for s:node in get(get(b:, 'sysml_graph_layout', {}), 'nodes', [])
+  if s:node.name ==# get(get(b:, 'sysml_graph_selection', {}), 'name', '')
+    let s:selected_node = s:node
+    break
+  endif
+endfor
+if &l:cursorline || empty(s:selection_match) || empty(s:selected_node)
+  cquit 24
+endif
+if get(s:selection_match, 'pos1', []) !=# [
+      \ s:selected_node.line,
+      \ s:selected_node.left_col,
+      \ s:selected_node.right_col - s:selected_node.left_col + strlen('│')
+      \ ]
+  cquit 25
+endif
 if empty(maparg(']n', 'n')) || empty(maparg('[n', 'n'))
       \ || empty(maparg(']e', 'n')) || empty(maparg('[e', 'n'))
       \ || empty(maparg('<Left>', 'n')) || empty(maparg('<Right>', 'n'))
