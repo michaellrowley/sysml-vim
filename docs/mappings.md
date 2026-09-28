@@ -19,7 +19,7 @@ Plug mappings:
 
 Defaults (only if unbound): `gd`, `gr`, `K`.
 
-In `:SysmlGraph` buffers, `]n` / `[n` move to the next / previous node, and
+In `:v2 graph` buffers, `]n` / `[n` move to the next / previous node, and
 `]e` / `[e` move to the next / previous edge. The graph-only defaults respect
 existing mappings and can be replaced using the corresponding `<Plug>` maps.
 Arrow keys move to the nearest node in that direction. With mouse support

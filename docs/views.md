@@ -21,7 +21,7 @@ Formats:
 
 Vim command:
 
-- `:SysmlGraph [focus]` renders a block-based hierarchical composition graph in a Vim buffer.
+- `:v2 graph [focus]` renders a block-based hierarchical composition graph in a Vim buffer.
 
 Within a graph buffer, arrow keys move to the nearest node in that direction.
 Use `]n` / `[n` to move through nodes in layout order and `]e` / `[e` to move

@@ -11,23 +11,45 @@ sysml-vim provides a Vim/Neovim frontend for the bundled `sysml` backend CLI.
 ==============================================================================
 COMMANDS                                                  *sysml-vim-commands*
 
-:SysmlCheck [path]            Run parser/reference diagnostics.
-:SysmlCheckWorkspace [path]   Validate workspace (default: cwd).
-:SysmlTree [path]             Open model structure tree buffer.
-:SysmlView [type] [focus]     Open semantic text view.
-:SysmlGraph [focus]           Open block node/edge hierarchical model view (ELK-style layered layout).
-:SysmlFind [kind] [name]      Populate quickfix with semantic query.
-:SysmlDefinition [name]       Jump to definition (default: <cword>).
-:SysmlReferences [name]       Quickfix references (default: <cword>).
-:SysmlHover [name]            Show hover/details buffer.
-:SysmlRelationships [name]    Open dependency-centric view.
-:SysmlRequirements [name]     Open requirements-centric view.
-:SysmlTraceability [name]     Open traceability-centric view.
-:SysmlHealth                  Show backend health and capabilities.
-:SysmlLog                     Show plugin/backend log messages.
+:v2 {subcommand} [arguments]  Run a plugin command; no arguments opens help.
+:v2 check [path]              Run parser/reference diagnostics.
+:v2 check-workspace [path]    Validate workspace (default: cwd).
+:v2 tree [path]               Open model structure tree buffer.
+:v2 view [type] [focus]       Open semantic text view.
+:v2 graph [focus]             Open block node/edge hierarchical model view (ELK-style layered layout).
+:v2 find [kind] [name]        Populate quickfix with semantic query.
+:v2 definition [name]         Jump to definition (default: <cword>).
+:v2 references [name]         Quickfix references (default: <cword>).
+:v2 hover [name]              Show hover/details buffer.
+:v2 relationships [name]      Open dependency-centric view.
+:v2 requirements [name]       Open requirements-centric view.
+:v2 traceability [name]       Open traceability-centric view.
+:v2 health                    Show backend health and capabilities.
+:v2 log                       Show plugin/backend log messages.
+:v2 restart                   Restart the RPC backend when active.
+:v2 help                      Open this help page.
 
-`:SysmlCheck` uses the current model buffer's text, including unsaved changes.
-`:SysmlCheckWorkspace` also includes unsaved text from loaded model buffers in
+:v2g [focus]                  Alias for :v2 graph.
+:v2h                          Alias for :v2 help.
+:v2c [path]                   Alias for :v2 check.
+:v2cw [path]                  Alias for :v2 check-workspace.
+:v2d [name]                   Alias for :v2 definition.
+:v2f [kind] [name]            Alias for :v2 find.
+:v2hea                        Alias for :v2 health.
+:v2ho [name]                  Alias for :v2 hover.
+:v2l                          Alias for :v2 log.
+:v2r [name]                   Alias for :v2 references.
+:v2rel [name]                 Alias for :v2 relationships.
+:v2req [name]                 Alias for :v2 requirements.
+:v2res                        Alias for :v2 restart.
+:v2tra [name]                 Alias for :v2 traceability.
+:v2t [path]                   Alias for :v2 tree.
+:v2v [type] [focus]           Alias for :v2 view.
+
+The original :Sysml* commands remain available for compatibility.
+
+`:v2 check` uses the current model buffer's text, including unsaved changes.
+`:v2 check-workspace` also includes unsaved text from loaded model buffers in
 the workspace. These checks require a working RPC backend when model buffers
 have unsaved changes.
 
@@ -54,7 +76,7 @@ Default mappings (if free):
   gr  -> references
   K   -> hover
 
-In :SysmlGraph buffers, ]n / [n move to the next / previous node and
+In :v2 graph buffers, ]n / [n move to the next / previous node and
 ]e / [e move to the next / previous edge. These defaults respect existing
 mappings and can be remapped through the corresponding <Plug> mappings.
 Arrow keys move to the nearest node in that direction. With mouse support
@@ -78,11 +100,11 @@ Supported view types:
   package, tree, composition, connections, requirements,
   traceability, dependencies, behavior, state
 
-Use `:SysmlView {type}` or `sysml view {type}`.
+Use `:v2 view {type}` or `sysml view {type}`.
 Tree, graph, and semantic views open in a dedicated tab, leaving the source tab
 available. Open views refresh after edits to loaded SysML/KerML buffers in the
 same workspace, including unsaved text sent over the RPC backend.
-:SysmlGraph without a focus argument shows the whole workspace; provide an
+:v2 graph without a focus argument shows the whole workspace; provide an
 element name to limit the graph.
 
 SysML folds are open by default. Adjust `foldlevel` in your ftplugin if you

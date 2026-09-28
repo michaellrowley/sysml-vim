@@ -24,7 +24,7 @@ endif
 
 let s:source_buffer = bufnr('%')
 call append(line('$') - 1, '  part def DraftOnly;')
-call sysml#tree()
+call feedkeys(":v2t\<CR>", 'xt')
 let s:tree_buffer = bufnr('%')
 if bufname('%') !~# '^sysml-tree-' || winnr('$') != 1
   cquit 2
