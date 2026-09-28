@@ -56,6 +56,7 @@ Checked on 2026-09-27:
 - Async check path where Vim `job_start()` is available
 - Persistent RPC backend mode (`sysml-rpc`) with safe fallback to one-shot CLI invocations
 - Block-based node/edge model view in Vim via `:SysmlGraph` with ELK-style hierarchical layered layout
+- Spatial arrow-key node navigation; mouse hover selects nodes and edges in Neovim, with click selection in Vim
 - Tree, graph, and semantic views open in a dedicated full-screen tab and refresh from unsaved model buffers
 
 ## Quick start
