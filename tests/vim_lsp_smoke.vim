@@ -2,7 +2,7 @@ set nocompatible
 execute 'set runtimepath^=' . fnameescape(getcwd())
 source plugin/sysml.vim
 
-if !exists(':SysmlCheck') || !exists(':SysmlGraph')
+if !exists(':V2') || !exists(':V2g') || !exists(':V2h') || !exists(':V2c')
   cquit 1
 endif
 
@@ -14,12 +14,12 @@ endif
 let g:sysml_rpc_timeout_ms = 10000
 let s:workspace = getcwd() . '/tests/fixtures/lsp'
 execute 'lcd ' . fnameescape(s:workspace)
-call sysml#check(s:workspace)
+call feedkeys(':v2c ' . fnameescape(s:workspace) . "\<CR>", 'xt')
 if !empty(filter(getqflist(), 'v:val.valid && v:val.type ==# "E"'))
   cquit 2
 endif
 
-call sysml#graph('Vehicle')
+call feedkeys(":v2g Vehicle\<CR>", 'xt')
 if bufname('%') !~# '^sysml-graph-'
   cquit 3
 endif
@@ -30,7 +30,7 @@ if join(getline(1, '$'), "\n") !~# 'Vehicle:part_def'
   cquit 4
 endif
 
-call sysml#graph('Vehicle')
+call feedkeys(":v2 graph Vehicle\<CR>", 'xt')
 if bufname('%') !~# '^sysml-graph-'
   cquit 5
 endif

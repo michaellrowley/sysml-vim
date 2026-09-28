@@ -22,4 +22,4 @@ Install Node.js 20+, the LSP package, and the Python backend as described in [in
 
 ## Health report
 
-Run `:SysmlHealth`, `sysml health --path .`, or `sysml parser-status` to check server configuration without starting Node. Run `sysml check <workspace>` to exercise parsing and collect diagnostics from the language server.
+Run `:v2 health`, `sysml health --path .`, or `sysml parser-status` to check server configuration without starting Node. Run `sysml check <workspace>` to exercise parsing and collect diagnostics from the language server.

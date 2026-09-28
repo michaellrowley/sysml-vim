@@ -1,23 +1,31 @@
 set nocompatible
 set runtimepath^=.
 source plugin/sysml.vim
-if !exists(':SysmlCheck')
+if !exists(':V2') || !exists(':V2g') || !exists(':V2h') || !exists(':V2c')
+      \ || !exists(':V2cw') || !exists(':V2d') || !exists(':V2f')
+      \ || !exists(':V2hea') || !exists(':V2ho') || !exists(':V2l')
+      \ || !exists(':V2r') || !exists(':V2rel') || !exists(':V2req')
+      \ || !exists(':V2res') || !exists(':V2tra') || !exists(':V2t')
+      \ || !exists(':V2v')
   cquit 1
+endif
+if !exists(':SysmlCheck')
+  cquit 2
 endif
 if !exists(':SysmlView')
-  cquit 1
+  cquit 2
 endif
 if !exists(':SysmlGraph')
-  cquit 1
+  cquit 2
 endif
 if !exists(':SysmlRelationships')
-  cquit 1
+  cquit 2
 endif
 if !exists(':SysmlRequirements')
-  cquit 1
+  cquit 2
 endif
 if !exists(':SysmlTraceability')
-  cquit 1
+  cquit 2
 endif
 
 let $PYTHONPATH = getcwd() . '/src' . (empty($PYTHONPATH) ? '' : ':' . $PYTHONPATH)
@@ -29,7 +37,7 @@ if empty(g:sysml_rpc_cmd)
 endif
 let g:sysml_rpc_timeout_ms = 10000
 let s:fixture_workspace = getcwd() . '/tests/fixtures/workspace'
-call sysml#check(s:fixture_workspace)
+call feedkeys(':v2 check ' . fnameescape(s:fixture_workspace) . "\<CR>", 'xt')
 if empty(getqflist())
   cquit 2
 endif
@@ -48,16 +56,34 @@ call sysml#check_workspace(s:fixture_workspace)
 if empty(filter(getqflist(), 'v:val.text ==# "diagnostic from unsaved buffer"'))
   cquit 9
 endif
-call sysml#graph('Vehicle')
+call feedkeys(":v2g Vehicle\<CR>", 'xt')
 if bufname('%') !~# '^sysml-graph-'
   cquit 3
 endif
 if tabpagenr('$') != 2 || winnr('$') != 1
   cquit 5
 endif
-call sysml#graph('Vehicle')
+call feedkeys(":v2 graph Vehicle\<CR>", 'xt')
 if bufname('%') !~# '^sysml-graph-'
   cquit 6
+endif
+call feedkeys(":v2h\<CR>", 'xt')
+if &filetype !=# 'help'
+  cquit 7
+endif
+call feedkeys(":v2 help\<CR>", 'xt')
+if &filetype !=# 'help'
+  cquit 8
+endif
+call feedkeys(":v2\<CR>", 'xt')
+if &filetype !=# 'help'
+  cquit 9
+endif
+
+execute 'lcd ' . fnameescape(s:fixture_workspace)
+call feedkeys(":v2cw\<CR>", 'xt')
+if empty(getqflist())
+  cquit 10
 endif
 
 quitall!

@@ -883,6 +883,47 @@ function! sysml#check_workspace(...) abort
   call sysml#check(path)
 endfunction
 
+function! sysml#command(...) abort
+  if a:0 == 0
+    return sysml#help()
+  endif
+
+  let commands = {
+        \ 'help': ['sysml#help', 0],
+        \ 'check': ['sysml#check', 1],
+        \ 'check-workspace': ['sysml#check_workspace', 1],
+        \ 'tree': ['sysml#tree', 1],
+        \ 'view': ['sysml#view', 2],
+        \ 'graph': ['sysml#graph', 1],
+        \ 'find': ['sysml#find', 2],
+        \ 'definition': ['sysml#definition', 1],
+        \ 'references': ['sysml#references', 1],
+        \ 'hover': ['sysml#hover', 1],
+        \ 'relationships': ['sysml#relationships', 1],
+        \ 'requirements': ['sysml#requirements', 1],
+        \ 'traceability': ['sysml#traceability', 1],
+        \ 'health': ['sysml#health', 0],
+        \ 'log': ['sysml#log', 0],
+        \ 'restart': ['sysml#restart', 0]
+        \ }
+  let subcommand = tolower(a:1)
+  if !has_key(commands, subcommand)
+    echoerr 'sysml-vim: unknown command: ' . a:1
+    return -1
+  endif
+  let command = commands[subcommand]
+  let args = a:000[1:]
+  if len(args) > command[1]
+    echoerr printf('sysml-vim: %s accepts at most %d argument(s)', subcommand, command[1])
+    return -1
+  endif
+  return call(command[0], args)
+endfunction
+
+function! sysml#help() abort
+  help sysml-vim
+endfunction
+
 function! sysml#tree(...) abort
   let path = a:0 > 0 ? a:1 : s:workspace_root()
   call s:open_model_view('sysml-tree', 'tree', path, {'path': path}, ['tree', path])

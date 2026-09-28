@@ -12,7 +12,7 @@ The screenshots below were generated from the included example model at `/home/r
 
 ![Vim editing a SysML model](docs/images/vim-editing.png)
 
-### Block node/edge model graph in Vim (`:SysmlGraph Vehicle`)
+### Block node/edge model graph in Vim (`:v2 graph Vehicle`)
 
 ![Vim showing block-based ELK-style graph view](docs/images/vim-block-graph.png)
 
@@ -50,12 +50,13 @@ Checked on 2026-09-27:
 
 - Filetype detection for `.sysml` and `.kerml`
 - Syntax highlighting, indentation, fold expression with folds open by default, comments
-- Commands: `:SysmlCheck`, `:SysmlTree`, `:SysmlView`, `:SysmlFind`, `:SysmlDefinition`, `:SysmlReferences`, `:SysmlHover`, `:SysmlHealth`
+- Commands: `:v2 check`, `:v2 tree`, `:v2 view`, `:v2 find`, `:v2 definition`, `:v2 references`, `:v2 hover`, `:v2 health`
+- Shortcuts are provided for the full command set; see [the command reference](docs/commands.md). For example, `:v2g` is `:v2 graph`, `:v2h` is `:v2 help`, and `:v2c` is `:v2 check`.
 - `<Plug>` mappings and non-destructive defaults (`gd`, `gr`, `K`)
 - Quickfix integration for diagnostics/references/queries
 - Async check path where Vim `job_start()` is available
 - Persistent RPC backend mode (`sysml-rpc`) with safe fallback to one-shot CLI invocations
-- Block-based node/edge model view in Vim via `:SysmlGraph` with ELK-style hierarchical layered layout
+- Block-based node/edge model view in Vim via `:v2 graph` with ELK-style hierarchical layered layout
 - Spatial arrow-key node navigation; mouse hover selects nodes and edges in Neovim, with click selection in Vim
 - Tree, graph, and semantic views open in a dedicated full-screen tab and refresh from unsaved model buffers
 
