@@ -30,3 +30,14 @@ rendered edge selects it in Neovim; in Vim, click to select because Vim does
 not report pointer-hover events. Selection highlighting is limited to the
 selected node's box or the selected edge's entry, rather than extending across
 the full screen.
+
+Node boxes are colored by element family, edge paths and their entries share a
+color by relationship family, and bright junctions mark route cells shared by
+multiple edges. Highlight groups follow standard Vim colorscheme groups and
+can be customized with `:highlight link`: node groups are
+`SysmlGraphNodeStructure`, `SysmlGraphNodeInterface`,
+`SysmlGraphNodeBehavior`, `SysmlGraphNodeRequirement`, and
+`SysmlGraphNodeOther`; edge groups are `SysmlGraphEdgeContainment`,
+`SysmlGraphEdgeTyping`, `SysmlGraphEdgeDerivation`,
+`SysmlGraphEdgeRequirement`, `SysmlGraphEdgeDependency`, and
+`SysmlGraphEdgeOther`. `SysmlGraphJunction` controls shared-route highlighting.

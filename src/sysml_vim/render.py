@@ -235,7 +235,13 @@ def render_graph(view: dict[str, Any], focus: str | None = None, depth: int = 4)
     canvas_lines = ["".join(row).rstrip() for row in canvas]
     while canvas_lines and canvas_lines[-1] == "":
         canvas_lines.pop()
-    lines = [f"View Graph: {view['type']} (ELK-style layered blocks)", ""]
+    lines = [
+        f"View Graph: {view['type']} (ELK-style layered blocks)",
+        "Legend: nodes = structure/interface/behavior/requirement/other",
+        "Edges = containment/typing/derivation/requirement/dependency/other",
+        "Bright junctions mark shared routes",
+        "",
+    ]
     lines.extend(canvas_lines or ["(no graph relationships)"])
     if edge_lines:
         lines.extend(["", "Edges:"])

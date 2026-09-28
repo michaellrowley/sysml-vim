@@ -20,6 +20,7 @@ def test_render_graph_hierarchy():
     view = build_view(index, "composition", focus="Vehicle")
     graph = render_graph(view, focus="Vehicle", depth=5)
     assert "View Graph: composition (ELK-style layered blocks)" in graph
+    assert "Bright junctions mark shared routes" in graph
     assert "Vehicle:part_def" in graph
     assert "- Vehicle -[contains]-> engine" in graph or "- Vehicle -[contains]-> wheel" in graph
     assert "- engine -[typed_by]-> Engine" in graph

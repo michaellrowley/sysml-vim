@@ -58,15 +58,33 @@ endif
 tabfirst
 call cursor(1, 1)
 call sysml#graph()
+let s:graph_buffer = bufnr('%')
+let s:edge_header_line = search('^Edges:$', 'n')
 if join(getline(1, '$'), "\n") !~# 'Vehicle:part_def'
   cquit 11
 endif
 let s:selection_match_id = get(w:, 'sysml_graph_selection_match', -1)
 let s:selection_match = {}
+let s:has_node_color = 0
+let s:has_edge_color = 0
+let s:has_edge_route_color = 0
+let s:has_junction_color = 0
 for s:match in getmatches()
   if s:match.id == s:selection_match_id
     let s:selection_match = s:match
-    break
+  endif
+  if s:match.group ==# 'SysmlGraphNodeStructure'
+    let s:has_node_color = 1
+  elseif s:match.group ==# 'SysmlGraphEdgeContainment'
+    let s:has_edge_color = 1
+    for s:match_index in range(1, 8)
+      let s:position = get(s:match, 'pos' . s:match_index, [])
+      if !empty(s:position) && s:position[0] < s:edge_header_line
+        let s:has_edge_route_color = 1
+      endif
+    endfor
+  elseif s:match.group ==# 'SysmlGraphJunction'
+    let s:has_junction_color = 1
   endif
 endfor
 let s:selected_node = {}
@@ -77,7 +95,12 @@ for s:node in get(get(b:, 'sysml_graph_layout', {}), 'nodes', [])
   endif
 endfor
 if &l:cursorline || empty(s:selection_match) || empty(s:selected_node)
+      \ || !s:has_node_color || !s:has_edge_color
+      \ || !s:has_edge_route_color || !s:has_junction_color
   cquit 24
+endif
+if get(s:selection_match, 'group', '') !=# 'SysmlGraphSelection'
+  cquit 26
 endif
 if get(s:selection_match, 'pos1', []) !=# [
       \ s:selected_node.line,
@@ -123,7 +146,6 @@ call sysml#graph_mouse_sync()
 if [line('.'), col('.')] !=# s:selected_edge_position
   cquit 20
 endif
-let s:edge_header_line = search('^Edges:$', 'n')
 let s:edge_route_selected = 0
 for s:graph_line in range(3, s:edge_header_line - 1)
   let s:arrow_column = match(getline(s:graph_line), '▶')
@@ -188,6 +210,19 @@ if join(getbufline(s:tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceA'
 endif
 if join(getbufline(s:second_tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceB'
   cquit 13
+endif
+if join(getbufline(s:graph_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceA:part_def'
+  cquit 27
+endif
+let s:graph_window = win_findbuf(s:graph_buffer)[0]
+call win_execute(
+      \ s:graph_window,
+      \ 'let b:sysml_graph_test_matches = getmatches()')
+let s:graph_test_matches = getbufvar(s:graph_buffer, 'sysml_graph_test_matches', [])
+if empty(filter(
+      \ copy(s:graph_test_matches),
+      \ 'v:val.group ==# "SysmlGraphNodeStructure"'))
+  cquit 28
 endif
 
 call delete(s:workspace_b, 'rf')

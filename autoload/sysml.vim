@@ -311,6 +311,12 @@ function! s:replace_buffer_lines(buffer_number, lines) abort
     call deletebufline(a:buffer_number, len(replacement_lines) + 1, previous_line_count)
   endif
   call setbufvar(a:buffer_number, '&modified', 0)
+  if getbufvar(a:buffer_number, 'sysml_view_method', '') ==# 'view_graph'
+        \ && exists('*win_execute')
+    for window_id in win_findbuf(a:buffer_number)
+      call win_execute(window_id, 'call sysml#_refresh_graph_highlights()')
+    endfor
+  endif
 endfunction
 
 function! s:open_view_buffer(name, lines, session) abort
@@ -345,6 +351,7 @@ function! s:open_view_buffer(name, lines, session) abort
   if a:session.method ==# 'view_graph'
     setlocal nocursorline
     call s:setup_graph_buffer()
+    call s:graph_apply_styles()
     if empty(maparg(']n', 'n'))
       nmap <buffer> ]n <Plug>(sysml-graph-next-node)
     endif
@@ -379,6 +386,7 @@ function! s:graph_nodes() abort
       if separator > 0
         call add(nodes, {
               \ 'name': trim(strpart(label, 0, separator)),
+              \ 'kind': trim(strpart(label, separator + 1)),
               \ 'line': line_number,
               \ 'col': label_start + 1,
               \ 'top': line_number - 1,
@@ -504,6 +512,240 @@ function! s:graph_layout() abort
   return b:sysml_graph_layout
 endfunction
 
+function! s:setup_graph_highlight_groups() abort
+  highlight default link SysmlGraphNodeStructure Type
+  highlight default link SysmlGraphNodeInterface Special
+  highlight default link SysmlGraphNodeBehavior Statement
+  highlight default link SysmlGraphNodeRequirement Todo
+  highlight default link SysmlGraphNodeOther Comment
+  highlight default link SysmlGraphEdgeContainment Identifier
+  highlight default link SysmlGraphEdgeTyping Type
+  highlight default link SysmlGraphEdgeDerivation PreProc
+  highlight default link SysmlGraphEdgeRequirement Todo
+  highlight default link SysmlGraphEdgeDependency Special
+  highlight default link SysmlGraphEdgeOther Comment
+  highlight default link SysmlGraphJunction WarningMsg
+  highlight default link SysmlGraphSelection CursorLine
+endfunction
+
+function! s:graph_node_highlight(kind) abort
+  if a:kind =~# 'requirement\|verification\|satisfaction'
+    return 'SysmlGraphNodeRequirement'
+  elseif a:kind =~# 'port\|interface\|connection'
+    return 'SysmlGraphNodeInterface'
+  elseif a:kind =~# 'action\|state\|transition\|behavior'
+    return 'SysmlGraphNodeBehavior'
+  elseif a:kind =~# 'part\|item\|attribute\|package\|classifier\|occurrence'
+    return 'SysmlGraphNodeStructure'
+  endif
+  return 'SysmlGraphNodeOther'
+endfunction
+
+function! s:graph_edge_highlight(relation) abort
+  if a:relation =~# 'contain\|member\|owned'
+    return 'SysmlGraphEdgeContainment'
+  elseif a:relation =~# 'satisf\|verif\|trace\|refin'
+    return 'SysmlGraphEdgeRequirement'
+  elseif a:relation =~# 'specializ\|redefin\|subset\|union\|intersect'
+    return 'SysmlGraphEdgeDerivation'
+  elseif a:relation =~# 'type\|typing'
+    return 'SysmlGraphEdgeTyping'
+  elseif a:relation =~# 'depend\|allocat'
+    return 'SysmlGraphEdgeDependency'
+  endif
+  return 'SysmlGraphEdgeOther'
+endfunction
+
+function! s:graph_add_cell(cells, line_number, display_column) abort
+  let line_key = string(a:line_number)
+  if !has_key(a:cells, line_key)
+    let a:cells[line_key] = {}
+  endif
+  let a:cells[line_key][string(a:display_column)] = 1
+endfunction
+
+function! s:graph_add_route_cell(cells, seen, line_number, display_column) abort
+  let key = a:line_number . ':' . a:display_column
+  if !has_key(a:seen, key)
+    let a:seen[key] = 1
+    call add(a:cells, [a:line_number, a:display_column])
+  endif
+endfunction
+
+function! s:graph_route_cells(edge) abort
+  let cells = []
+  let seen = {}
+  if a:edge.start_x < a:edge.mid_x
+    for x in range(a:edge.start_x, a:edge.mid_x - 1)
+      call s:graph_add_route_cell(cells, seen, a:edge.source_line, x + 1)
+    endfor
+  endif
+
+  for line_number in range(
+        \ min([a:edge.source_line, a:edge.target_line]),
+        \ max([a:edge.source_line, a:edge.target_line]))
+    call s:graph_add_route_cell(cells, seen, line_number, a:edge.mid_x + 1)
+  endfor
+
+  if a:edge.mid_x < a:edge.end_x
+    for x in range(a:edge.mid_x, a:edge.end_x - 1)
+      call s:graph_add_route_cell(cells, seen, a:edge.target_line, x + 1)
+    endfor
+  endif
+  call s:graph_add_route_cell(cells, seen, a:edge.target_line, a:edge.end_x + 1)
+  return cells
+endfunction
+
+function! s:graph_byte_column(line_number, display_column) abort
+  let text = getline(a:line_number)
+  let byte_column = 1
+  let display_column = 1
+  let character_index = 0
+  while byte_column <= strlen(text)
+    let character = strcharpart(text, character_index, 1)
+    let character_width = strdisplaywidth(character, display_column - 1)
+    if character_width > 0
+      if a:display_column < display_column + character_width
+        return byte_column
+      endif
+      let display_column += character_width
+    endif
+    let byte_column += strlen(character)
+    let character_index += 1
+  endwhile
+  return strlen(text) + 1
+endfunction
+
+function! s:graph_cell_positions(cells) abort
+  let positions = []
+  for [line_key, line_cells] in items(a:cells)
+    let columns = []
+    for column_key in keys(line_cells)
+      call add(columns, str2nr(column_key))
+    endfor
+    call sort(columns, 'n')
+    if empty(columns)
+      continue
+    endif
+
+    let first_column = columns[0]
+    let last_column = first_column
+    let column_index = 1
+    while column_index < len(columns)
+      let column = columns[column_index]
+      if column == last_column + 1
+        let last_column = column
+      else
+        let first_byte = s:graph_byte_column(str2nr(line_key), first_column)
+        let end_byte = s:graph_byte_column(str2nr(line_key), last_column + 1)
+        call add(positions, [str2nr(line_key), first_byte, end_byte - first_byte])
+        let first_column = column
+        let last_column = column
+      endif
+      let column_index += 1
+    endwhile
+    let first_byte = s:graph_byte_column(str2nr(line_key), first_column)
+    let end_byte = s:graph_byte_column(str2nr(line_key), last_column + 1)
+    call add(positions, [str2nr(line_key), first_byte, end_byte - first_byte])
+  endfor
+  return positions
+endfunction
+
+function! s:graph_add_matches(group, positions, priority) abort
+  let position_index = 0
+  while position_index < len(a:positions)
+    let last_index = min([position_index + 7, len(a:positions) - 1])
+    let match_id = matchaddpos(
+          \ a:group,
+          \ a:positions[position_index : last_index],
+          \ a:priority)
+    call add(w:sysml_graph_style_matches, match_id)
+    let position_index = last_index + 1
+  endwhile
+endfunction
+
+function! s:graph_apply_styles() abort
+  call s:setup_graph_highlight_groups()
+  for match_id in get(w:, 'sysml_graph_style_matches', [])
+    call matchdelete(match_id)
+  endfor
+  let w:sysml_graph_style_matches = []
+
+  let layout = s:graph_layout()
+  let positions_by_group = {}
+  let cells_by_group = {}
+  let overlap_counts = {}
+  for node in layout.nodes
+    let group = s:graph_node_highlight(node.kind)
+    if !has_key(positions_by_group, group)
+      let positions_by_group[group] = []
+    endif
+    for line_number in [node.line - 1, node.line, node.line + 1]
+      if line_number >= 1 && line_number <= line('$')
+        let first_byte = s:graph_byte_column(line_number, node.left)
+        let end_byte = s:graph_byte_column(line_number, node.right + 1)
+        if end_byte > first_byte
+          call add(positions_by_group[group], [
+                \ line_number,
+                \ first_byte,
+                \ end_byte - first_byte
+                \ ])
+        endif
+      endif
+    endfor
+  endfor
+
+  for edge in layout.edges
+    let group = s:graph_edge_highlight(edge.relation)
+    if !has_key(positions_by_group, group)
+      let positions_by_group[group] = []
+    endif
+    let edge_text = getline(edge.line)
+    if !empty(edge_text)
+      call add(positions_by_group[group], [edge.line, 1, strlen(edge_text)])
+    endif
+    if !has_key(cells_by_group, group)
+      let cells_by_group[group] = {}
+    endif
+    for cell in s:graph_route_cells(edge)
+      call s:graph_add_cell(cells_by_group[group], cell[0], cell[1])
+      let key = cell[0] . ':' . cell[1]
+      let overlap_counts[key] = get(overlap_counts, key, 0) + 1
+    endfor
+  endfor
+
+  for [group, cells] in items(cells_by_group)
+    call extend(positions_by_group[group], s:graph_cell_positions(cells))
+  endfor
+  let junction_cells = {}
+  for [key, overlap_total] in items(overlap_counts)
+    if overlap_total > 1
+      let coordinates = split(key, ':')
+      call s:graph_add_cell(
+            \ junction_cells,
+            \ str2nr(coordinates[0]),
+            \ str2nr(coordinates[1]))
+    endif
+  endfor
+  if !empty(junction_cells)
+    let positions_by_group.SysmlGraphJunction = s:graph_cell_positions(junction_cells)
+  endif
+
+  for [group, positions] in items(positions_by_group)
+    let priority = group ==# 'SysmlGraphJunction' ? 15
+          \ : group =~# '^SysmlGraphEdge' ? 11 : 10
+    call s:graph_add_matches(group, positions, priority)
+  endfor
+endfunction
+
+function! sysml#_refresh_graph_highlights() abort
+  if get(b:, 'sysml_view_method', '') !=# 'view_graph'
+    return
+  endif
+  call s:graph_apply_styles()
+  call s:graph_highlight_selection()
+endfunction
+
 function! s:graph_set_cursor(line_number, column) abort
   if line('.') == a:line_number && col('.') == a:column
     return
@@ -547,7 +789,10 @@ function! s:graph_highlight_selection() abort
   endif
 
   if !empty(positions)
-    let w:sysml_graph_selection_match = matchaddpos('CursorLine', positions)
+    let w:sysml_graph_selection_match = matchaddpos(
+          \ 'SysmlGraphSelection',
+          \ positions,
+          \ 20)
   endif
 endfunction
 
