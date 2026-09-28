@@ -51,15 +51,72 @@ call sysml#graph('DraftOnly')
 if bufname('%') !~# '^sysml-graph-' || winnr('$') != 1
   cquit 7
 endif
-if join(getline(1, '$'), "\n") !~# 'DraftOnly:part_def'
+if join(getline(1, '$'), "\n") !~# 'DraftOnly'
   cquit 8
 endif
 
 tabfirst
 call cursor(1, 1)
 call sysml#graph()
-if join(getline(1, '$'), "\n") !~# 'Vehicle:part_def'
+let s:graph_buffer = bufnr('%')
+let s:edge_header_line = search('^Edges:$', 'n')
+if join(getline(1, '$'), "\n") !~# 'Vehicle'
   cquit 11
+endif
+let s:selection_match_id = get(w:, 'sysml_graph_selection_match', -1)
+let s:selection_match = {}
+let s:has_node_color = 0
+let s:has_edge_color = 0
+let s:has_edge_route_color = 0
+for s:match in getmatches()
+  if s:match.id == s:selection_match_id
+    let s:selection_match = s:match
+  endif
+  if s:match.group ==# 'SysmlGraphNodeStructure'
+    let s:has_node_color = 1
+  elseif s:match.group ==# 'SysmlGraphEdgeRoute'
+    let s:has_edge_route_color = 1
+    for s:match_index in range(1, 8)
+      let s:position = get(s:match, 'pos' . s:match_index, [])
+      if !empty(s:position) && s:position[0] < s:edge_header_line
+        let s:has_edge_route_color = 2
+      endif
+    endfor
+  elseif s:match.group ==# 'SysmlGraphEdgeTyping'
+    let s:has_edge_color = 1
+  endif
+endfor
+let s:selected_node = {}
+for s:node in get(get(b:, 'sysml_graph_layout', {}), 'nodes', [])
+  if s:node.name ==# get(get(b:, 'sysml_graph_selection', {}), 'name', '')
+    let s:selected_node = s:node
+    break
+  endif
+endfor
+if &l:cursorline || empty(s:selection_match) || empty(s:selected_node)
+      \ || !s:has_node_color || !s:has_edge_color
+      \ || s:has_edge_route_color != 2 || !hlexists('SysmlGraphJunction')
+  cquit 24
+endif
+if get(s:selection_match, 'group', '') !=# 'SysmlGraphSelection'
+  cquit 26
+endif
+let s:top_box_text = strcharpart(
+      \ getline(s:selected_node.top),
+      \ s:selected_node.left - 1,
+      \ s:selected_node.right - s:selected_node.left + 1
+      \ )
+let s:top_box_byte_column = strlen(strcharpart(
+      \ getline(s:selected_node.top),
+      \ 0,
+      \ s:selected_node.left - 1
+      \ )) + 1
+if get(s:selection_match, 'pos1', []) !=# [
+      \ s:selected_node.top,
+      \ s:top_box_byte_column,
+      \ strlen(s:top_box_text)
+      \ ]
+  cquit 25
 endif
 if empty(maparg(']n', 'n')) || empty(maparg('[n', 'n'))
       \ || empty(maparg(']e', 'n')) || empty(maparg('[e', 'n'))
@@ -69,7 +126,7 @@ if empty(maparg(']n', 'n')) || empty(maparg('[n', 'n'))
 endif
 call cursor(1, 1)
 normal ]n
-if getline('.') !~# '│.*:.*│'
+if getline('.') !~# '│.*│'
   cquit 15
 endif
 let s:first_node_position = [line('.'), col('.')]
@@ -82,7 +139,7 @@ if getline('.') !~# '^- '
   cquit 16
 endif
 normal [n
-if getline('.') !~# '│.*:.*│'
+if getline('.') !~# '│.*│'
   cquit 17
 endif
 let s:selected_node_position = [line('.'), col('.')]
@@ -98,7 +155,6 @@ call sysml#graph_mouse_sync()
 if [line('.'), col('.')] !=# s:selected_edge_position
   cquit 20
 endif
-let s:edge_header_line = search('^Edges:$', 'n')
 let s:edge_route_selected = 0
 for s:graph_line in range(3, s:edge_header_line - 1)
   let s:arrow_column = match(getline(s:graph_line), '▶')
@@ -123,8 +179,59 @@ execute "normal \<Right>"
 if [line('.'), col('.')] ==# s:node_before_arrow
   cquit 21
 endif
-if getline('.') !~# '│.*:.*│'
+if getline('.') !~# '│.*│'
   cquit 22
+endif
+
+let s:navigation_nodes = get(get(b:, 'sysml_graph_layout', {}), 'nodes', [])
+let s:leftmost_node = {}
+let s:max_node_right = 0
+for s:node in s:navigation_nodes
+  let s:center_x = s:node.left + (s:node.right - s:node.left) / 2
+  if empty(s:leftmost_node)
+        \ || s:center_x < s:leftmost_node.left
+              \ + (s:leftmost_node.right - s:leftmost_node.left) / 2
+    let s:leftmost_node = s:node
+  endif
+  let s:max_node_right = max([s:max_node_right, s:node.right])
+endfor
+let b:sysml_graph_selection = {
+      \ 'kind': 'node',
+      \ 'id': s:leftmost_node.id,
+      \ 'name': s:leftmost_node.name
+      \ }
+call cursor(s:leftmost_node.line, s:leftmost_node.col)
+if virtcol('.') < s:leftmost_node.left || virtcol('.') > s:leftmost_node.right
+  cquit 28
+endif
+let s:current_node = s:leftmost_node
+let s:navigation_steps = 0
+while s:navigation_steps < len(s:navigation_nodes)
+  call sysml#graph_move('right')
+  let s:selection_id = get(get(b:, 'sysml_graph_selection', {}), 'id', '')
+  if s:selection_id ==# s:current_node.id
+    break
+  endif
+  let s:next_node = {}
+  for s:node in s:navigation_nodes
+    if s:node.id ==# s:selection_id
+      let s:next_node = s:node
+      break
+    endif
+  endfor
+  if empty(s:next_node)
+    cquit 29
+  endif
+  if s:next_node.left + (s:next_node.right - s:next_node.left) / 2
+        \ <= s:current_node.left
+              \ + (s:current_node.right - s:current_node.left) / 2
+    cquit 30
+  endif
+  let s:current_node = s:next_node
+  let s:navigation_steps += 1
+endwhile
+if s:current_node.right != s:max_node_right
+  cquit 31
 endif
 
 let s:workspace_b = tempname()
@@ -163,6 +270,23 @@ if join(getbufline(s:tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceA'
 endif
 if join(getbufline(s:second_tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceB'
   cquit 13
+endif
+let s:refreshed_graph_layout = getbufvar(s:graph_buffer, 'sysml_graph_layout', {})
+if empty(filter(
+      \ copy(get(s:refreshed_graph_layout, 'nodes', [])),
+      \ 'v:val.name ==# "UpdateFromWorkspaceA"'
+      \ ))
+  cquit 27
+endif
+let s:graph_window = win_findbuf(s:graph_buffer)[0]
+call win_execute(
+      \ s:graph_window,
+      \ 'let b:sysml_graph_test_matches = getmatches()')
+let s:graph_test_matches = getbufvar(s:graph_buffer, 'sysml_graph_test_matches', [])
+if empty(filter(
+      \ copy(s:graph_test_matches),
+      \ 'v:val.group ==# "SysmlGraphNodeStructure"'))
+  cquit 28
 endif
 
 call delete(s:workspace_b, 'rf')

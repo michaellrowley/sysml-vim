@@ -236,16 +236,19 @@ function! s:view_request(session) abort
   endif
 
   let result = rpc.result
+  let graph_layout = {}
   if a:session.method ==# 'tree'
     let lines = s:tree_lines(result, a:session.path)
   elseif a:session.method ==# 'view_text'
     let lines = split(get(result, 'text', ''), "\n")
   else
     let lines = split(get(result, 'graph', ''), "\n")
+    let graph_layout = get(result, 'layout', {})
   endif
   return {
         \ 'ok': v:true,
         \ 'lines': lines,
+        \ 'layout': graph_layout,
         \ 'has_modified_buffers': document_state.has_modified_buffers
         \ }
 endfunction
@@ -273,6 +276,9 @@ function! s:open_model_view(buffer_name, method, path, params, fallback_args) ab
   let view_response = s:view_request(session)
   if get(view_response, 'ok', v:false)
     let lines = view_response.lines
+    if a:method ==# 'view_graph'
+      let session.graph_layout = view_response.layout
+    endif
   elseif get(view_response, 'has_modified_buffers', v:false)
     echohl ErrorMsg
     echom 'sysml view failed; unsaved SysML text requires a working RPC backend: ' . view_response.error
@@ -295,6 +301,16 @@ function! s:open_model_view(buffer_name, method, path, params, fallback_args) ab
         return
       endif
       let lines = s:tree_lines(tree_result, a:path)
+    elseif a:method ==# 'view_graph'
+      let graph_result = s:json_decode_lines(command_result.lines)
+      if !has_key(graph_result, 'graph') || !has_key(graph_result, 'layout')
+        echohl ErrorMsg
+        echom 'sysml graph command returned invalid diagram data'
+        echohl None
+        return
+      endif
+      let lines = split(graph_result.graph, "\n")
+      let session.graph_layout = graph_result.layout
     else
       let lines = command_result.lines
     endif
@@ -302,15 +318,21 @@ function! s:open_model_view(buffer_name, method, path, params, fallback_args) ab
   call s:open_view_buffer(a:buffer_name, lines, session)
 endfunction
 
-function! s:replace_buffer_lines(buffer_number, lines) abort
+function! s:replace_buffer_lines(buffer_number, lines, graph_layout) abort
   let replacement_lines = empty(a:lines) ? [''] : a:lines
   let previous_line_count = len(getbufline(a:buffer_number, 1, '$'))
   call setbufline(a:buffer_number, 1, replacement_lines)
-  call setbufvar(a:buffer_number, 'sysml_graph_layout', {})
+  call setbufvar(a:buffer_number, 'sysml_graph_layout', a:graph_layout)
   if previous_line_count > len(replacement_lines) && exists('*deletebufline')
     call deletebufline(a:buffer_number, len(replacement_lines) + 1, previous_line_count)
   endif
   call setbufvar(a:buffer_number, '&modified', 0)
+  if getbufvar(a:buffer_number, 'sysml_view_method', '') ==# 'view_graph'
+        \ && exists('*win_execute')
+    for window_id in win_findbuf(a:buffer_number)
+      call win_execute(window_id, 'call sysml#_refresh_graph_highlights()')
+    endfor
+  endif
 endfunction
 
 function! s:open_view_buffer(name, lines, session) abort
@@ -337,14 +359,19 @@ function! s:open_view_buffer(name, lines, session) abort
 
   setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile
   setlocal modifiable
-  call s:replace_buffer_lines(bufnr('%'), a:lines)
+  call s:replace_buffer_lines(
+        \ bufnr('%'),
+        \ a:lines,
+        \ get(a:session, 'graph_layout', {})
+        \ )
   let s:view_sessions[string(bufnr('%'))] = copy(a:session)
   let b:sysml_source_buffer = a:session.source_buffer
   let b:sysml_workspace_path = a:session.path
   let b:sysml_view_method = a:session.method
   if a:session.method ==# 'view_graph'
-    setlocal cursorline
+    setlocal nocursorline
     call s:setup_graph_buffer()
+    call s:graph_apply_styles()
     if empty(maparg(']n', 'n'))
       nmap <buffer> ]n <Plug>(sysml-graph-next-node)
     endif
@@ -379,12 +406,15 @@ function! s:graph_nodes() abort
       if separator > 0
         call add(nodes, {
               \ 'name': trim(strpart(label, 0, separator)),
+              \ 'kind': trim(strpart(label, separator + 1)),
               \ 'line': line_number,
               \ 'col': label_start + 1,
               \ 'top': line_number - 1,
               \ 'bottom': line_number + 1,
               \ 'left': strdisplaywidth(strpart(text, 0, left_border)) + 1,
-              \ 'right': strdisplaywidth(strpart(text, 0, right_border)) + 1
+              \ 'right': strdisplaywidth(strpart(text, 0, right_border)) + 1,
+              \ 'left_col': left_border + 1,
+              \ 'right_col': right_border + 1
               \ })
       endif
       let search_from = right_border + strlen('│')
@@ -478,6 +508,14 @@ function! s:graph_edges(nodes) abort
 endfunction
 
 function! s:edge_contains(edge, line_number, column) abort
+  if has_key(a:edge, 'route_cells')
+    for position in a:edge.route_cells
+      if position[0] == a:line_number && position[1] == a:column
+        return 1
+      endif
+    endfor
+    return 0
+  endif
   if a:line_number == a:edge.source_line
         \ && a:column >= a:edge.start_x + 1
         \ && a:column <= a:edge.mid_x
@@ -502,6 +540,254 @@ function! s:graph_layout() abort
   return b:sysml_graph_layout
 endfunction
 
+function! s:setup_graph_highlight_groups() abort
+  highlight default link SysmlGraphNodeStructure Type
+  highlight default link SysmlGraphNodeInterface Special
+  highlight default link SysmlGraphNodeBehavior Statement
+  highlight default link SysmlGraphNodeRequirement Todo
+  highlight default link SysmlGraphNodeOther Comment
+  highlight default link SysmlGraphEdgeRoute SpecialKey
+  highlight default link SysmlGraphEdgeContainment Identifier
+  highlight default link SysmlGraphEdgeTyping Type
+  highlight default link SysmlGraphEdgeDerivation PreProc
+  highlight default link SysmlGraphEdgeRequirement Todo
+  highlight default link SysmlGraphEdgeDependency Special
+  highlight default link SysmlGraphEdgeOther Comment
+  highlight default link SysmlGraphJunction WarningMsg
+  highlight default link SysmlGraphSelection CursorLine
+endfunction
+
+function! s:graph_node_highlight(kind) abort
+  if a:kind =~# 'requirement\|verification\|satisfaction'
+    return 'SysmlGraphNodeRequirement'
+  elseif a:kind =~# 'port\|interface\|connection'
+    return 'SysmlGraphNodeInterface'
+  elseif a:kind =~# 'action\|state\|transition\|behavior'
+    return 'SysmlGraphNodeBehavior'
+  elseif a:kind =~# 'part\|item\|attribute\|package\|classifier\|occurrence'
+    return 'SysmlGraphNodeStructure'
+  endif
+  return 'SysmlGraphNodeOther'
+endfunction
+
+function! s:graph_edge_highlight(relation) abort
+  if a:relation =~# 'contain\|member\|owned'
+    return 'SysmlGraphEdgeContainment'
+  elseif a:relation =~# 'satisf\|verif\|trace\|refin'
+    return 'SysmlGraphEdgeRequirement'
+  elseif a:relation =~# 'specializ\|redefin\|subset\|union\|intersect'
+    return 'SysmlGraphEdgeDerivation'
+  elseif a:relation =~# 'type\|typing'
+    return 'SysmlGraphEdgeTyping'
+  elseif a:relation =~# 'depend\|allocat'
+    return 'SysmlGraphEdgeDependency'
+  endif
+  return 'SysmlGraphEdgeOther'
+endfunction
+
+function! s:graph_add_cell(cells, line_number, display_column) abort
+  let line_key = string(a:line_number)
+  if !has_key(a:cells, line_key)
+    let a:cells[line_key] = {}
+  endif
+  let a:cells[line_key][string(a:display_column)] = 1
+endfunction
+
+function! s:graph_add_route_cell(cells, seen, line_number, display_column) abort
+  let key = a:line_number . ':' . a:display_column
+  if !has_key(a:seen, key)
+    let a:seen[key] = 1
+    call add(a:cells, [a:line_number, a:display_column])
+  endif
+endfunction
+
+function! s:graph_route_cells(edge) abort
+  let cells = []
+  let seen = {}
+  if has_key(a:edge, 'route_cells')
+    for position in a:edge.route_cells
+      call s:graph_add_route_cell(cells, seen, position[0], position[1])
+    endfor
+    return cells
+  endif
+  if a:edge.start_x < a:edge.mid_x
+    for x in range(a:edge.start_x, a:edge.mid_x - 1)
+      call s:graph_add_route_cell(cells, seen, a:edge.source_line, x + 1)
+    endfor
+  endif
+
+  for line_number in range(
+        \ min([a:edge.source_line, a:edge.target_line]),
+        \ max([a:edge.source_line, a:edge.target_line]))
+    call s:graph_add_route_cell(cells, seen, line_number, a:edge.mid_x + 1)
+  endfor
+
+  if a:edge.mid_x < a:edge.end_x
+    for x in range(a:edge.mid_x, a:edge.end_x - 1)
+      call s:graph_add_route_cell(cells, seen, a:edge.target_line, x + 1)
+    endfor
+  endif
+  call s:graph_add_route_cell(cells, seen, a:edge.target_line, a:edge.end_x + 1)
+  return cells
+endfunction
+
+function! s:graph_byte_column(line_number, display_column) abort
+  let text = getline(a:line_number)
+  let byte_column = 1
+  let display_column = 1
+  let character_index = 0
+  while byte_column <= strlen(text)
+    let character = strcharpart(text, character_index, 1)
+    let character_width = strdisplaywidth(character, display_column - 1)
+    if character_width > 0
+      if a:display_column < display_column + character_width
+        return byte_column
+      endif
+      let display_column += character_width
+    endif
+    let byte_column += strlen(character)
+    let character_index += 1
+  endwhile
+  return strlen(text) + 1
+endfunction
+
+function! s:graph_cell_positions(cells) abort
+  let positions = []
+  for [line_key, line_cells] in items(a:cells)
+    let columns = []
+    for column_key in keys(line_cells)
+      call add(columns, str2nr(column_key))
+    endfor
+    call sort(columns, 'n')
+    if empty(columns)
+      continue
+    endif
+
+    let first_column = columns[0]
+    let last_column = first_column
+    let column_index = 1
+    while column_index < len(columns)
+      let column = columns[column_index]
+      if column == last_column + 1
+        let last_column = column
+      else
+        let first_byte = s:graph_byte_column(str2nr(line_key), first_column)
+        let end_byte = s:graph_byte_column(str2nr(line_key), last_column + 1)
+        call add(positions, [str2nr(line_key), first_byte, end_byte - first_byte])
+        let first_column = column
+        let last_column = column
+      endif
+      let column_index += 1
+    endwhile
+    let first_byte = s:graph_byte_column(str2nr(line_key), first_column)
+    let end_byte = s:graph_byte_column(str2nr(line_key), last_column + 1)
+    call add(positions, [str2nr(line_key), first_byte, end_byte - first_byte])
+  endfor
+  return positions
+endfunction
+
+function! s:graph_add_matches(group, positions, priority) abort
+  let position_index = 0
+  while position_index < len(a:positions)
+    let last_index = min([position_index + 7, len(a:positions) - 1])
+    let match_id = matchaddpos(
+          \ a:group,
+          \ a:positions[position_index : last_index],
+          \ a:priority)
+    call add(w:sysml_graph_style_matches, match_id)
+    let position_index = last_index + 1
+  endwhile
+endfunction
+
+function! s:graph_apply_styles() abort
+  call s:setup_graph_highlight_groups()
+  for match_id in get(w:, 'sysml_graph_style_matches', [])
+    call matchdelete(match_id)
+  endfor
+  let w:sysml_graph_style_matches = []
+
+  let layout = s:graph_layout()
+  let positions_by_group = {}
+  let cells_by_group = {}
+  let overlap_counts = {}
+  for node in layout.nodes
+    let group = s:graph_node_highlight(node.kind)
+    if !has_key(positions_by_group, group)
+      let positions_by_group[group] = []
+    endif
+    for line_number in range(node.top, node.bottom)
+      if line_number >= 1 && line_number <= line('$')
+        let first_byte = s:graph_byte_column(line_number, node.left)
+        let end_byte = s:graph_byte_column(line_number, node.right + 1)
+        if end_byte > first_byte
+          call add(positions_by_group[group], [
+                \ line_number,
+                \ first_byte,
+                \ end_byte - first_byte
+                \ ])
+        endif
+      endif
+    endfor
+  endfor
+
+  for edge in layout.edges
+    let group = s:graph_edge_highlight(edge.relation)
+    if !has_key(positions_by_group, group)
+      let positions_by_group[group] = []
+    endif
+    let edge_text = getline(edge.line)
+    if !empty(edge_text)
+      call add(positions_by_group[group], [edge.line, 1, strlen(edge_text)])
+    endif
+    if !has_key(cells_by_group, 'SysmlGraphEdgeRoute')
+      let cells_by_group.SysmlGraphEdgeRoute = {}
+    endif
+    for cell in s:graph_route_cells(edge)
+      call s:graph_add_cell(cells_by_group.SysmlGraphEdgeRoute, cell[0], cell[1])
+      let key = cell[0] . ':' . cell[1]
+      let overlap_counts[key] = get(overlap_counts, key, 0) + 1
+    endfor
+  endfor
+
+  for [group, cells] in items(cells_by_group)
+    let positions = s:graph_cell_positions(cells)
+    if !has_key(positions_by_group, group)
+      let positions_by_group[group] = []
+    endif
+    call extend(positions_by_group[group], positions)
+  endfor
+  let junction_cells = {}
+  for [key, overlap_total] in items(overlap_counts)
+    if overlap_total > 1
+      let coordinates = split(key, ':')
+      let line_number = str2nr(coordinates[0])
+      let display_column = str2nr(coordinates[1])
+      let byte_column = s:graph_byte_column(line_number, display_column)
+      let character = matchstr(strpart(getline(line_number), byte_column - 1), '^.')
+      if character ==# '┼'
+        call s:graph_add_cell(junction_cells, line_number, display_column)
+      endif
+    endif
+  endfor
+  if !empty(junction_cells)
+    let positions_by_group.SysmlGraphJunction = s:graph_cell_positions(junction_cells)
+  endif
+
+  for [group, positions] in items(positions_by_group)
+    let priority = group ==# 'SysmlGraphJunction' ? 15
+          \ : group =~# '^SysmlGraphNode' ? 20 : 10
+    call s:graph_add_matches(group, positions, priority)
+  endfor
+endfunction
+
+function! sysml#_refresh_graph_highlights() abort
+  if get(b:, 'sysml_view_method', '') !=# 'view_graph'
+    return
+  endif
+  call s:graph_apply_styles()
+  call s:graph_highlight_selection()
+endfunction
+
 function! s:graph_set_cursor(line_number, column) abort
   if line('.') == a:line_number && col('.') == a:column
     return
@@ -514,6 +800,68 @@ function! s:graph_set_cursor(line_number, column) abort
   endtry
 endfunction
 
+function! s:graph_highlight_selection() abort
+  let previous_matches = get(w:, 'sysml_graph_selection_matches', [])
+  if empty(previous_matches) && exists('w:sysml_graph_selection_match')
+    let previous_matches = [w:sysml_graph_selection_match]
+  endif
+  for match_id in previous_matches
+    call matchdelete(match_id)
+  endfor
+  let w:sysml_graph_selection_matches = []
+  unlet! w:sysml_graph_selection_match
+
+  let selection = get(b:, 'sysml_graph_selection', {})
+  let positions = []
+  if get(selection, 'kind', '') ==# 'node'
+    for node in s:graph_layout().nodes
+      if (!empty(get(selection, 'id', '')) && node.id ==# selection.id)
+            \ || (empty(get(selection, 'id', ''))
+            \ && node.name ==# get(selection, 'name', ''))
+        for line_number in range(node.top, node.bottom)
+          let first_byte = s:graph_byte_column(line_number, node.left)
+          let end_byte = s:graph_byte_column(line_number, node.right + 1)
+          if end_byte > first_byte
+            call add(positions, [
+                  \ line_number,
+                  \ first_byte,
+                  \ end_byte - first_byte
+                  \ ])
+          endif
+        endfor
+        break
+      endif
+    endfor
+  elseif get(selection, 'kind', '') ==# 'edge'
+    for edge in s:graph_layout().edges
+      if edge.source ==# get(selection, 'source', '')
+            \ && edge.relation ==# get(selection, 'relation', '')
+            \ && edge.target ==# get(selection, 'target', '')
+        call add(positions, [edge.line, 1, strlen(getline(edge.line))])
+        break
+      endif
+    endfor
+  endif
+
+  if !empty(positions)
+    let position_index = 0
+    while position_index < len(positions)
+      let last_index = min([position_index + 7, len(positions) - 1])
+      let match_id = matchaddpos(
+            \ 'SysmlGraphSelection',
+            \ positions[position_index : last_index],
+            \ 30)
+      if match_id >= 0
+        if empty(w:sysml_graph_selection_matches)
+          let w:sysml_graph_selection_match = match_id
+        endif
+        call add(w:sysml_graph_selection_matches, match_id)
+      endif
+      let position_index = last_index + 1
+    endwhile
+  endif
+endfunction
+
 function! s:select_graph_node(focus) abort
   let nodes = s:graph_layout().nodes
   if empty(nodes)
@@ -522,13 +870,23 @@ function! s:select_graph_node(focus) abort
   if !empty(a:focus)
     for node in nodes
       if node.name ==# a:focus
-        let b:sysml_graph_selection = {'kind': 'node', 'name': node.name}
+        let b:sysml_graph_selection = {
+              \ 'kind': 'node',
+              \ 'id': node.id,
+              \ 'name': node.name
+              \ }
+        call s:graph_highlight_selection()
         call s:graph_set_cursor(node.line, node.col)
         return
       endif
     endfor
   endif
-  let b:sysml_graph_selection = {'kind': 'node', 'name': nodes[0].name}
+  let b:sysml_graph_selection = {
+        \ 'kind': 'node',
+        \ 'id': nodes[0].id,
+        \ 'name': nodes[0].name
+        \ }
+  call s:graph_highlight_selection()
   call s:graph_set_cursor(nodes[0].line, nodes[0].col)
 endfunction
 
@@ -610,10 +968,16 @@ function! sysml#graph_mouse_sync(...) abort
   endif
   let layout = s:graph_layout()
   unlet! b:sysml_graph_selection
+  call s:graph_highlight_selection()
   for node in layout.nodes
     if current_line >= node.top && current_line <= node.bottom
           \ && current_column >= node.left && current_column <= node.right
-      let b:sysml_graph_selection = {'kind': 'node', 'name': node.name}
+      let b:sysml_graph_selection = {
+            \ 'kind': 'node',
+            \ 'id': node.id,
+            \ 'name': node.name
+            \ }
+      call s:graph_highlight_selection()
       call s:graph_set_cursor(node.line, node.col)
       return
     endif
@@ -631,6 +995,7 @@ function! sysml#graph_mouse_sync(...) abort
                 \ 'relation': edge.relation,
                 \ 'target': edge.target
                 \ }
+          call s:graph_highlight_selection()
           call s:graph_set_cursor(current_line, edge.col)
           return
         endif
@@ -648,6 +1013,7 @@ function! sysml#graph_mouse_sync(...) abort
             \ 'relation': edge.relation,
             \ 'target': edge.target
             \ }
+      call s:graph_highlight_selection()
       return
     endif
   endfor
@@ -676,13 +1042,32 @@ function! sysml#graph_move(direction) abort
   endif
 
   let current = {'x': virtcol('.'), 'y': line('.')}
+  let current_node = {}
   for node in nodes
     if current.y >= node.top && current.y <= node.bottom
           \ && current.x >= node.left && current.x <= node.right
-      let current = {'x': (node.left + node.right) / 2, 'y': node.line}
+      let current_node = node
       break
     endif
   endfor
+  if empty(current_node)
+    let selection = get(b:, 'sysml_graph_selection', {})
+    for node in nodes
+      if (!empty(get(selection, 'id', '')) && node.id ==# selection.id)
+            \ || (empty(get(selection, 'id', ''))
+            \ && get(selection, 'kind', '') ==# 'node'
+            \ && node.name ==# get(selection, 'name', ''))
+        let current_node = node
+        break
+      endif
+    endfor
+  endif
+  if !empty(current_node)
+    let current = {
+          \ 'x': current_node.left + (current_node.right - current_node.left) / 2,
+          \ 'y': current_node.line
+          \ }
+  endif
 
   let target = {}
   let best_score = -1
@@ -712,7 +1097,12 @@ function! sysml#graph_move(direction) abort
   endfor
 
   if !empty(target)
-    let b:sysml_graph_selection = {'kind': 'node', 'name': target.name}
+    let b:sysml_graph_selection = {
+          \ 'kind': 'node',
+          \ 'id': target.id,
+          \ 'name': target.name
+          \ }
+    call s:graph_highlight_selection()
     call s:graph_set_cursor(target.line, target.col)
   endif
 endfunction
@@ -816,7 +1206,11 @@ function! sysml#_refresh_views(timer_id) abort
       echohl None
       continue
     endif
-    call s:replace_buffer_lines(result_buffer, refreshed_view.lines)
+    call s:replace_buffer_lines(
+          \ result_buffer,
+          \ refreshed_view.lines,
+          \ get(refreshed_view, 'layout', {})
+          \ )
   endfor
 endfunction
 
@@ -952,10 +1346,16 @@ function! sysml#graph(...) abort
   endif
 
   let params = {'path': context.path, 'type': 'composition', 'depth': 5}
+  let graph_width = max([40, winwidth(0)])
+  let params.width = graph_width
   if !empty(focus)
     let params.focus = focus
   endif
-  let args = ['view', 'composition', '--path', context.path, '--format', 'graph', '--depth', '5']
+  let args = [
+        \ 'view', 'composition', '--path', context.path,
+        \ '--format', 'graph-json', '--depth', '5',
+        \ '--width', string(graph_width)
+        \ ]
   if !empty(focus)
     call extend(args, ['--focus', focus])
   endif

@@ -157,6 +157,14 @@ class WorkspaceIndex:
                 range=cls._parse_range(symbol.get("range")),
                 container=cls._optional_string(symbol.get("container"), "symbol container"),
                 signature=cls._optional_string(symbol.get("signature"), "symbol signature"),
+                ancestors=cls._string_tuple(
+                    symbol.get("ancestors", []),
+                    "symbol ancestors",
+                ),
+                attributes=cls._optional_object(
+                    symbol.get("attributes"),
+                    "symbol attributes",
+                ),
             )
             for symbol in cls._object_list(file_response, "symbols")
         ]
@@ -207,6 +215,20 @@ class WorkspaceIndex:
     def _optional_string(value: Any, field_name: str) -> str | None:
         if value is not None and not isinstance(value, str):
             raise ParserBackendError(f"parser response field {field_name!r} must be a string or null")
+        return value
+
+    @staticmethod
+    def _string_tuple(value: Any, field_name: str) -> tuple[str, ...]:
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            raise ParserBackendError(f"parser response field {field_name!r} must be a list of strings")
+        return tuple(value)
+
+    @staticmethod
+    def _optional_object(value: Any, field_name: str) -> dict[str, Any]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict) or any(not isinstance(key, str) for key in value):
+            raise ParserBackendError(f"parser response field {field_name!r} must be an object")
         return value
 
     @staticmethod

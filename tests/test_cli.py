@@ -63,6 +63,22 @@ def test_cli_definition_and_view():
     assert code3 == 0
     assert "View Graph: composition" in out3
 
+    code4, out4 = run_cmd([
+        "view",
+        "composition",
+        "--path",
+        "tests/fixtures/workspace",
+        "--format",
+        "graph-json",
+        "--focus",
+        "Vehicle",
+    ])
+    graph_data = json.loads(out4)
+    assert code4 == 0
+    assert "graph" in graph_data
+    assert graph_data["layout"]["nodes"]
+    assert graph_data["layout"]["edges"]
+
 
 def test_cli_svg_view_branch_with_mock(monkeypatch, capsys):
     monkeypatch.setattr(cli, "render_svg", lambda _: "<svg>ok</svg>")

@@ -380,10 +380,12 @@ class SysMLLspAdapter:
             element_name = model_element.get("name")
             element_type = model_element.get("type")
             element_range = model_element.get("range")
+            element_attributes = model_element.get("attributes", {})
             if (
                 not isinstance(element_name, str)
                 or not isinstance(element_type, str)
                 or not isinstance(element_range, dict)
+                or not isinstance(element_attributes, dict)
             ):
                 raise ParserBackendError(
                     f"language server returned an incomplete model element for {source_path}"
@@ -397,7 +399,7 @@ class SysMLLspAdapter:
                 "range": converted_range,
                 "container": parent_name,
                 "ancestors": ancestor_names,
-                "attributes": model_element.get("attributes", {}),
+                "attributes": element_attributes,
                 "relationships": model_element.get("relationships", []),
                 "element_range": element_range,
             }
@@ -444,6 +446,8 @@ class SysMLLspAdapter:
                         "range": symbol_range,
                         "container": parent_name,
                         "signature": signature or None,
+                        "ancestors": list(ancestor_names),
+                        "attributes": element_attributes,
                     }
                 )
 

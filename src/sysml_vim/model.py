@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 
 @dataclass(slots=True)
@@ -20,6 +20,8 @@ class Symbol:
     range: Range
     container: str | None = None
     signature: str | None = None
+    ancestors: tuple[str, ...] = ()
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

@@ -6,7 +6,8 @@ import sys
 from typing import Any
 
 from .adapter import ParserBackendError, SysMLLspAdapter
-from .render import build_view, render_graph, render_text
+from .diagram import render_graph_data
+from .render import build_view, render_text
 from .workspace import WorkspaceIndex
 
 _INDEX_CACHE: dict[str, WorkspaceIndex] = {}
@@ -105,7 +106,12 @@ def _handle(method: str, params: dict[str, Any]) -> Any:
     if method == "view_graph":
         view_type = params.get("type", "composition")
         view = build_view(index, view_type, params.get("focus"), int(params.get("depth", 4)))
-        return {"graph": render_graph(view, params.get("focus"), int(params.get("depth", 4)))}
+        return render_graph_data(
+            view,
+            params.get("focus"),
+            int(params.get("depth", 4)),
+            int(params.get("width", 80)),
+        )
     raise LookupError(f"Unknown method: {method}")
 
 

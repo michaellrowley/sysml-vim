@@ -19,10 +19,12 @@ def test_render_graph_hierarchy():
     index.refresh()
     view = build_view(index, "composition", focus="Vehicle")
     graph = render_graph(view, focus="Vehicle", depth=5)
-    assert "View Graph: composition (ELK-style layered blocks)" in graph
-    assert "Vehicle:part_def" in graph
-    assert "- Vehicle -[contains]-> engine" in graph or "- Vehicle -[contains]-> wheel" in graph
-    assert "- engine -[typed_by]-> Engine" in graph
+    assert "View Graph: composition (structural diagram)" in graph
+    assert "«part def»" in graph
+    assert "Vehicle" in graph
+    assert "engine : Engine" in graph
+    assert "wheel : Wheel" in graph
+    assert "- Vehicle.engine -[typed_by]-> Engine" in graph
 
 
 def test_dependency_view_includes_dependency_relationships():
@@ -31,8 +33,9 @@ def test_dependency_view_includes_dependency_relationships():
 
     view = build_view(index, "dependencies")
 
-    assert {
-        "source": "Fleet",
-        "target": "Vehicle",
-        "relation": "dependency",
-    } in view["edges"]
+    assert any(
+        edge["source"] == "Fleet"
+        and edge["target"] == "Vehicle"
+        and edge["relation"] == "dependency"
+        for edge in view["edges"]
+    )
