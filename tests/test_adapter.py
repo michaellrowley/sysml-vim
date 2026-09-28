@@ -34,7 +34,13 @@ def test_adapter_uses_the_lsp_model_and_diagnostics_contract(monkeypatch):
     assert response["parser"]["version"] == "unknown"
     assert "SysML v2 textual grammar derived from OMG KEBNF" in response["parser"]["standards"]
     assert response["files"][0]["path"] == str(source_file)
-    assert any(symbol["name"] == "Vehicle" for symbol in response["files"][0]["symbols"])
+    vehicle = next(
+        symbol
+        for symbol in response["files"][0]["symbols"]
+        if symbol["name"] == "Vehicle"
+    )
+    assert vehicle["ancestors"] == ["VehiclePkg"]
+    assert vehicle["attributes"] == {}
 
 
 def test_adapter_surfaces_language_server_startup_errors(monkeypatch):
