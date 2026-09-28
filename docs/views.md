@@ -31,13 +31,15 @@ not report pointer-hover events. Selection highlighting is limited to the
 selected node's box or the selected edge's entry, rather than extending across
 the full screen.
 
-Node boxes are colored by element family, edge paths and their entries share a
-color by relationship family, and bright junctions mark route cells shared by
-multiple edges. Highlight groups follow standard Vim colorscheme groups and
-can be customized with `:highlight link`: node groups are
+Node boxes are colored by element family. Edge paths use one consistent color,
+while edge entries use relationship-family colors; only actual crossing
+junctions receive a separate highlight. This keeps a path from appearing to
+change color as it overlaps another edge. Highlight groups follow standard Vim
+colorscheme groups and can be customized with `:highlight link`: node groups are
 `SysmlGraphNodeStructure`, `SysmlGraphNodeInterface`,
 `SysmlGraphNodeBehavior`, `SysmlGraphNodeRequirement`, and
-`SysmlGraphNodeOther`; edge groups are `SysmlGraphEdgeContainment`,
+`SysmlGraphNodeOther`; routes use `SysmlGraphEdgeRoute`; edge entries use
+`SysmlGraphEdgeContainment`,
 `SysmlGraphEdgeTyping`, `SysmlGraphEdgeDerivation`,
 `SysmlGraphEdgeRequirement`, `SysmlGraphEdgeDependency`, and
 `SysmlGraphEdgeOther`. `SysmlGraphJunction` controls shared-route highlighting.

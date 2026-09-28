@@ -238,8 +238,8 @@ def render_graph(view: dict[str, Any], focus: str | None = None, depth: int = 4)
     lines = [
         f"View Graph: {view['type']} (ELK-style layered blocks)",
         "Legend: nodes = structure/interface/behavior/requirement/other",
-        "Edges = containment/typing/derivation/requirement/dependency/other",
-        "Bright junctions mark shared routes",
+        "Routes = one color; edge entries = containment/typing/derivation/requirement/dependency/other",
+        "Bright junctions mark route crossings",
         "",
     ]
     lines.extend(canvas_lines or ["(no graph relationships)"])

@@ -518,6 +518,7 @@ function! s:setup_graph_highlight_groups() abort
   highlight default link SysmlGraphNodeBehavior Statement
   highlight default link SysmlGraphNodeRequirement Todo
   highlight default link SysmlGraphNodeOther Comment
+  highlight default link SysmlGraphEdgeRoute SpecialKey
   highlight default link SysmlGraphEdgeContainment Identifier
   highlight default link SysmlGraphEdgeTyping Type
   highlight default link SysmlGraphEdgeDerivation PreProc
@@ -704,27 +705,34 @@ function! s:graph_apply_styles() abort
     if !empty(edge_text)
       call add(positions_by_group[group], [edge.line, 1, strlen(edge_text)])
     endif
-    if !has_key(cells_by_group, group)
-      let cells_by_group[group] = {}
+    if !has_key(cells_by_group, 'SysmlGraphEdgeRoute')
+      let cells_by_group.SysmlGraphEdgeRoute = {}
     endif
     for cell in s:graph_route_cells(edge)
-      call s:graph_add_cell(cells_by_group[group], cell[0], cell[1])
+      call s:graph_add_cell(cells_by_group.SysmlGraphEdgeRoute, cell[0], cell[1])
       let key = cell[0] . ':' . cell[1]
       let overlap_counts[key] = get(overlap_counts, key, 0) + 1
     endfor
   endfor
 
   for [group, cells] in items(cells_by_group)
-    call extend(positions_by_group[group], s:graph_cell_positions(cells))
+    let positions = s:graph_cell_positions(cells)
+    if !has_key(positions_by_group, group)
+      let positions_by_group[group] = []
+    endif
+    call extend(positions_by_group[group], positions)
   endfor
   let junction_cells = {}
   for [key, overlap_total] in items(overlap_counts)
     if overlap_total > 1
       let coordinates = split(key, ':')
-      call s:graph_add_cell(
-            \ junction_cells,
-            \ str2nr(coordinates[0]),
-            \ str2nr(coordinates[1]))
+      let line_number = str2nr(coordinates[0])
+      let display_column = str2nr(coordinates[1])
+      let byte_column = s:graph_byte_column(line_number, display_column)
+      let character = matchstr(strpart(getline(line_number), byte_column - 1), '^.')
+      if character ==# '┼'
+        call s:graph_add_cell(junction_cells, line_number, display_column)
+      endif
     endif
   endfor
   if !empty(junction_cells)
@@ -733,7 +741,7 @@ function! s:graph_apply_styles() abort
 
   for [group, positions] in items(positions_by_group)
     let priority = group ==# 'SysmlGraphJunction' ? 15
-          \ : group =~# '^SysmlGraphEdge' ? 11 : 10
+          \ : group =~# '^SysmlGraphNode' ? 20 : 10
     call s:graph_add_matches(group, positions, priority)
   endfor
 endfunction
@@ -792,7 +800,7 @@ function! s:graph_highlight_selection() abort
     let w:sysml_graph_selection_match = matchaddpos(
           \ 'SysmlGraphSelection',
           \ positions,
-          \ 20)
+          \ 30)
   endif
 endfunction
 

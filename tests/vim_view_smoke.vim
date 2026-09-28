@@ -75,14 +75,16 @@ for s:match in getmatches()
   endif
   if s:match.group ==# 'SysmlGraphNodeStructure'
     let s:has_node_color = 1
-  elseif s:match.group ==# 'SysmlGraphEdgeContainment'
-    let s:has_edge_color = 1
+  elseif s:match.group ==# 'SysmlGraphEdgeRoute'
+    let s:has_edge_route_color = 1
     for s:match_index in range(1, 8)
       let s:position = get(s:match, 'pos' . s:match_index, [])
       if !empty(s:position) && s:position[0] < s:edge_header_line
-        let s:has_edge_route_color = 1
+        let s:has_edge_route_color = 2
       endif
     endfor
+  elseif s:match.group ==# 'SysmlGraphEdgeContainment'
+    let s:has_edge_color = 1
   elseif s:match.group ==# 'SysmlGraphJunction'
     let s:has_junction_color = 1
   endif
@@ -96,7 +98,7 @@ for s:node in get(get(b:, 'sysml_graph_layout', {}), 'nodes', [])
 endfor
 if &l:cursorline || empty(s:selection_match) || empty(s:selected_node)
       \ || !s:has_node_color || !s:has_edge_color
-      \ || !s:has_edge_route_color || !s:has_junction_color
+      \ || s:has_edge_route_color != 2 || !s:has_junction_color
   cquit 24
 endif
 if get(s:selection_match, 'group', '') !=# 'SysmlGraphSelection'
