@@ -12,9 +12,11 @@ The screenshots below were generated from the included example model at `/home/r
 
 ![Vim editing a SysML model](docs/images/vim-editing.png)
 
-### Block node/edge model graph in Vim (`:v2 graph Vehicle`)
+### Structural diagram in Vim (`:v2 graph Vehicle`)
 
-![Vim showing block-based ELK-style graph view](docs/images/vim-block-graph.png)
+Definitions appear as boxes with contained usages in feature compartments.
+Orthogonal relationship routes connect boxes, and cyclic relationships use an
+outer gutter to keep the structure readable.
 
 ## Status and conformance stance
 
@@ -42,7 +44,8 @@ Checked on 2026-09-27:
 - Semantic queries (`sysml query`)
 - Structural tree (`sysml tree`)
 - Semantic views: package/composition/connections/requirements/traceability/dependencies/behavior/state
-- Rendering formats: text, Graphviz DOT, SVG (when `dot` is installed)
+- Rendering formats: text, Graphviz DOT, SVG (when `dot` is installed), and a
+  structural graph view
 - JSON-RPC server (`sysml-rpc`) with documented methods
 - SysML v2 language-server integration via `SYSML_LSP_SERVER` or `SYSML_LSP_COMMAND`
 
@@ -56,7 +59,8 @@ Checked on 2026-09-27:
 - Quickfix integration for diagnostics/references/queries
 - Async check path where Vim `job_start()` is available
 - Persistent RPC backend mode (`sysml-rpc`) with safe fallback to one-shot CLI invocations
-- Block-based node/edge model view in Vim via `:v2 graph` with ELK-style hierarchical layered layout
+- Cameo-inspired structural diagram in Vim via `:v2 graph`, with feature
+  compartments and orthogonal relationship routing
 - Spatial arrow-key node navigation; mouse hover selects nodes and edges in Neovim, with click selection in Vim
 - Tree, graph, and semantic views open in a dedicated full-screen tab and refresh from unsaved model buffers
 

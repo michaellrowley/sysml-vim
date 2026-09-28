@@ -236,16 +236,19 @@ function! s:view_request(session) abort
   endif
 
   let result = rpc.result
+  let graph_layout = {}
   if a:session.method ==# 'tree'
     let lines = s:tree_lines(result, a:session.path)
   elseif a:session.method ==# 'view_text'
     let lines = split(get(result, 'text', ''), "\n")
   else
     let lines = split(get(result, 'graph', ''), "\n")
+    let graph_layout = get(result, 'layout', {})
   endif
   return {
         \ 'ok': v:true,
         \ 'lines': lines,
+        \ 'layout': graph_layout,
         \ 'has_modified_buffers': document_state.has_modified_buffers
         \ }
 endfunction
@@ -273,6 +276,9 @@ function! s:open_model_view(buffer_name, method, path, params, fallback_args) ab
   let view_response = s:view_request(session)
   if get(view_response, 'ok', v:false)
     let lines = view_response.lines
+    if a:method ==# 'view_graph'
+      let session.graph_layout = view_response.layout
+    endif
   elseif get(view_response, 'has_modified_buffers', v:false)
     echohl ErrorMsg
     echom 'sysml view failed; unsaved SysML text requires a working RPC backend: ' . view_response.error
@@ -295,6 +301,16 @@ function! s:open_model_view(buffer_name, method, path, params, fallback_args) ab
         return
       endif
       let lines = s:tree_lines(tree_result, a:path)
+    elseif a:method ==# 'view_graph'
+      let graph_result = s:json_decode_lines(command_result.lines)
+      if !has_key(graph_result, 'graph') || !has_key(graph_result, 'layout')
+        echohl ErrorMsg
+        echom 'sysml graph command returned invalid diagram data'
+        echohl None
+        return
+      endif
+      let lines = split(graph_result.graph, "\n")
+      let session.graph_layout = graph_result.layout
     else
       let lines = command_result.lines
     endif
@@ -302,11 +318,11 @@ function! s:open_model_view(buffer_name, method, path, params, fallback_args) ab
   call s:open_view_buffer(a:buffer_name, lines, session)
 endfunction
 
-function! s:replace_buffer_lines(buffer_number, lines) abort
+function! s:replace_buffer_lines(buffer_number, lines, graph_layout) abort
   let replacement_lines = empty(a:lines) ? [''] : a:lines
   let previous_line_count = len(getbufline(a:buffer_number, 1, '$'))
   call setbufline(a:buffer_number, 1, replacement_lines)
-  call setbufvar(a:buffer_number, 'sysml_graph_layout', {})
+  call setbufvar(a:buffer_number, 'sysml_graph_layout', a:graph_layout)
   if previous_line_count > len(replacement_lines) && exists('*deletebufline')
     call deletebufline(a:buffer_number, len(replacement_lines) + 1, previous_line_count)
   endif
@@ -343,7 +359,11 @@ function! s:open_view_buffer(name, lines, session) abort
 
   setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile
   setlocal modifiable
-  call s:replace_buffer_lines(bufnr('%'), a:lines)
+  call s:replace_buffer_lines(
+        \ bufnr('%'),
+        \ a:lines,
+        \ get(a:session, 'graph_layout', {})
+        \ )
   let s:view_sessions[string(bufnr('%'))] = copy(a:session)
   let b:sysml_source_buffer = a:session.source_buffer
   let b:sysml_workspace_path = a:session.path
@@ -488,6 +508,14 @@ function! s:graph_edges(nodes) abort
 endfunction
 
 function! s:edge_contains(edge, line_number, column) abort
+  if has_key(a:edge, 'route_cells')
+    for position in a:edge.route_cells
+      if position[0] == a:line_number && position[1] == a:column
+        return 1
+      endif
+    endfor
+    return 0
+  endif
   if a:line_number == a:edge.source_line
         \ && a:column >= a:edge.start_x + 1
         \ && a:column <= a:edge.mid_x
@@ -576,6 +604,12 @@ endfunction
 function! s:graph_route_cells(edge) abort
   let cells = []
   let seen = {}
+  if has_key(a:edge, 'route_cells')
+    for position in a:edge.route_cells
+      call s:graph_add_route_cell(cells, seen, position[0], position[1])
+    endfor
+    return cells
+  endif
   if a:edge.start_x < a:edge.mid_x
     for x in range(a:edge.start_x, a:edge.mid_x - 1)
       call s:graph_add_route_cell(cells, seen, a:edge.source_line, x + 1)
@@ -681,7 +715,7 @@ function! s:graph_apply_styles() abort
     if !has_key(positions_by_group, group)
       let positions_by_group[group] = []
     endif
-    for line_number in [node.line - 1, node.line, node.line + 1]
+    for line_number in range(node.top, node.bottom)
       if line_number >= 1 && line_number <= line('$')
         let first_byte = s:graph_byte_column(line_number, node.left)
         let end_byte = s:graph_byte_column(line_number, node.right + 1)
@@ -767,21 +801,32 @@ function! s:graph_set_cursor(line_number, column) abort
 endfunction
 
 function! s:graph_highlight_selection() abort
-  if exists('w:sysml_graph_selection_match')
-    call matchdelete(w:sysml_graph_selection_match)
-    unlet w:sysml_graph_selection_match
+  let previous_matches = get(w:, 'sysml_graph_selection_matches', [])
+  if empty(previous_matches) && exists('w:sysml_graph_selection_match')
+    let previous_matches = [w:sysml_graph_selection_match]
   endif
+  for match_id in previous_matches
+    call matchdelete(match_id)
+  endfor
+  let w:sysml_graph_selection_matches = []
+  unlet! w:sysml_graph_selection_match
 
   let selection = get(b:, 'sysml_graph_selection', {})
   let positions = []
   if get(selection, 'kind', '') ==# 'node'
     for node in s:graph_layout().nodes
       if node.name ==# get(selection, 'name', '')
-        call add(positions, [
-              \ node.line,
-              \ node.left_col,
-              \ node.right_col - node.left_col + strlen('│')
-              \ ])
+        for line_number in range(node.top, node.bottom)
+          let first_byte = s:graph_byte_column(line_number, node.left)
+          let end_byte = s:graph_byte_column(line_number, node.right + 1)
+          if end_byte > first_byte
+            call add(positions, [
+                  \ line_number,
+                  \ first_byte,
+                  \ end_byte - first_byte
+                  \ ])
+          endif
+        endfor
         break
       endif
     endfor
@@ -797,10 +842,21 @@ function! s:graph_highlight_selection() abort
   endif
 
   if !empty(positions)
-    let w:sysml_graph_selection_match = matchaddpos(
-          \ 'SysmlGraphSelection',
-          \ positions,
-          \ 30)
+    let position_index = 0
+    while position_index < len(positions)
+      let last_index = min([position_index + 7, len(positions) - 1])
+      let match_id = matchaddpos(
+            \ 'SysmlGraphSelection',
+            \ positions[position_index : last_index],
+            \ 30)
+      if match_id >= 0
+        if empty(w:sysml_graph_selection_matches)
+          let w:sysml_graph_selection_match = match_id
+        endif
+        call add(w:sysml_graph_selection_matches, match_id)
+      endif
+      let position_index = last_index + 1
+    endwhile
   endif
 endfunction
 
@@ -1113,7 +1169,11 @@ function! sysml#_refresh_views(timer_id) abort
       echohl None
       continue
     endif
-    call s:replace_buffer_lines(result_buffer, refreshed_view.lines)
+    call s:replace_buffer_lines(
+          \ result_buffer,
+          \ refreshed_view.lines,
+          \ get(refreshed_view, 'layout', {})
+          \ )
   endfor
 endfunction
 
@@ -1252,7 +1312,7 @@ function! sysml#graph(...) abort
   if !empty(focus)
     let params.focus = focus
   endif
-  let args = ['view', 'composition', '--path', context.path, '--format', 'graph', '--depth', '5']
+  let args = ['view', 'composition', '--path', context.path, '--format', 'graph-json', '--depth', '5']
   if !empty(focus)
     call extend(args, ['--focus', focus])
   endif

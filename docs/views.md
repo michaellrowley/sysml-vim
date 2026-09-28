@@ -17,11 +17,16 @@ Formats:
 - dot (Graphviz)
 - svg (if Graphviz `dot` is installed)
 - json
-- graph (block-based node/edge view with ELK-style layered hierarchy)
+- graph (structural diagram with typed definition boxes and feature compartments)
+- graph-json (graph text and structured geometry for editor integrations)
 
 Vim command:
 
-- `:v2 graph [focus]` renders a block-based hierarchical composition graph in a Vim buffer.
+- `:v2 graph [focus]` renders a Cameo-inspired structural diagram in a Vim
+  buffer. Definitions are shown as boxes with kind/name headers and contained
+  usages in feature compartments. Forward relationships use orthogonal routes
+  between boxes; backward and cyclic relationships use an outer gutter.
+  Relationship labels are listed below the diagram.
 
 Within a graph buffer, arrow keys move to the nearest node in that direction.
 Use `]n` / `[n` to move through nodes in layout order and `]e` / `[e` to move

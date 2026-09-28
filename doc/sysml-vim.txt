@@ -16,7 +16,7 @@ COMMANDS                                                  *sysml-vim-commands*
 :v2 check-workspace [path]    Validate workspace (default: cwd).
 :v2 tree [path]               Open model structure tree buffer.
 :v2 view [type] [focus]       Open semantic text view.
-:v2 graph [focus]             Open block node/edge hierarchical model view (ELK-style layered layout).
+:v2 graph [focus]             Open a structural diagram with feature compartments.
 :v2 find [kind] [name]        Populate quickfix with semantic query.
 :v2 definition [name]         Jump to definition (default: <cword>).
 :v2 references [name]         Quickfix references (default: <cword>).
@@ -106,6 +106,9 @@ available. Open views refresh after edits to loaded SysML/KerML buffers in the
 same workspace, including unsaved text sent over the RPC backend.
 :v2 graph without a focus argument shows the whole workspace; provide an
 element name to limit the graph.
+Graph boxes show definition kind/name headers and contained usages in feature
+compartments. Forward relationships route between boxes; backward and cyclic
+relationships use an outer gutter, with relationship labels below the diagram.
 
 SysML folds are open by default. Adjust `foldlevel` in your ftplugin if you
 prefer collapsed folds.

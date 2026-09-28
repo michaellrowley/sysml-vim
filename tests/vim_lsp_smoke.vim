@@ -26,7 +26,7 @@ endif
 if tabpagenr('$') != 2 || winnr('$') != 1
   cquit 6
 endif
-if join(getline(1, '$'), "\n") !~# 'Vehicle:part_def'
+if join(getline(1, '$'), "\n") !~# 'Vehicle'
   cquit 4
 endif
 

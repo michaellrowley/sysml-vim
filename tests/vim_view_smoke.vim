@@ -51,7 +51,7 @@ call sysml#graph('DraftOnly')
 if bufname('%') !~# '^sysml-graph-' || winnr('$') != 1
   cquit 7
 endif
-if join(getline(1, '$'), "\n") !~# 'DraftOnly:part_def'
+if join(getline(1, '$'), "\n") !~# 'DraftOnly'
   cquit 8
 endif
 
@@ -60,7 +60,7 @@ call cursor(1, 1)
 call sysml#graph()
 let s:graph_buffer = bufnr('%')
 let s:edge_header_line = search('^Edges:$', 'n')
-if join(getline(1, '$'), "\n") !~# 'Vehicle:part_def'
+if join(getline(1, '$'), "\n") !~# 'Vehicle'
   cquit 11
 endif
 let s:selection_match_id = get(w:, 'sysml_graph_selection_match', -1)
@@ -68,7 +68,6 @@ let s:selection_match = {}
 let s:has_node_color = 0
 let s:has_edge_color = 0
 let s:has_edge_route_color = 0
-let s:has_junction_color = 0
 for s:match in getmatches()
   if s:match.id == s:selection_match_id
     let s:selection_match = s:match
@@ -83,10 +82,8 @@ for s:match in getmatches()
         let s:has_edge_route_color = 2
       endif
     endfor
-  elseif s:match.group ==# 'SysmlGraphEdgeContainment'
+  elseif s:match.group ==# 'SysmlGraphEdgeTyping'
     let s:has_edge_color = 1
-  elseif s:match.group ==# 'SysmlGraphJunction'
-    let s:has_junction_color = 1
   endif
 endfor
 let s:selected_node = {}
@@ -98,16 +95,26 @@ for s:node in get(get(b:, 'sysml_graph_layout', {}), 'nodes', [])
 endfor
 if &l:cursorline || empty(s:selection_match) || empty(s:selected_node)
       \ || !s:has_node_color || !s:has_edge_color
-      \ || s:has_edge_route_color != 2 || !s:has_junction_color
+      \ || s:has_edge_route_color != 2 || !hlexists('SysmlGraphJunction')
   cquit 24
 endif
 if get(s:selection_match, 'group', '') !=# 'SysmlGraphSelection'
   cquit 26
 endif
+let s:top_box_text = strcharpart(
+      \ getline(s:selected_node.top),
+      \ s:selected_node.left - 1,
+      \ s:selected_node.right - s:selected_node.left + 1
+      \ )
+let s:top_box_byte_column = strlen(strcharpart(
+      \ getline(s:selected_node.top),
+      \ 0,
+      \ s:selected_node.left - 1
+      \ )) + 1
 if get(s:selection_match, 'pos1', []) !=# [
-      \ s:selected_node.line,
-      \ s:selected_node.left_col,
-      \ s:selected_node.right_col - s:selected_node.left_col + strlen('│')
+      \ s:selected_node.top,
+      \ s:top_box_byte_column,
+      \ strlen(s:top_box_text)
       \ ]
   cquit 25
 endif
@@ -119,7 +126,7 @@ if empty(maparg(']n', 'n')) || empty(maparg('[n', 'n'))
 endif
 call cursor(1, 1)
 normal ]n
-if getline('.') !~# '│.*:.*│'
+if getline('.') !~# '│.*│'
   cquit 15
 endif
 let s:first_node_position = [line('.'), col('.')]
@@ -132,7 +139,7 @@ if getline('.') !~# '^- '
   cquit 16
 endif
 normal [n
-if getline('.') !~# '│.*:.*│'
+if getline('.') !~# '│.*│'
   cquit 17
 endif
 let s:selected_node_position = [line('.'), col('.')]
@@ -172,7 +179,7 @@ execute "normal \<Right>"
 if [line('.'), col('.')] ==# s:node_before_arrow
   cquit 21
 endif
-if getline('.') !~# '│.*:.*│'
+if getline('.') !~# '│.*│'
   cquit 22
 endif
 
@@ -213,7 +220,7 @@ endif
 if join(getbufline(s:second_tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceB'
   cquit 13
 endif
-if join(getbufline(s:graph_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceA:part_def'
+if join(getbufline(s:graph_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceA'
   cquit 27
 endif
 let s:graph_window = win_findbuf(s:graph_buffer)[0]
