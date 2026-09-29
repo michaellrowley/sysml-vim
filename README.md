@@ -10,7 +10,10 @@ The screenshots below were generated from the included example model at `/home/r
 
 ### Editing a SysML model in Vim
 
-![Vim editing a SysML model](docs/images/vim-editing.png)
+<p float="left">
+  <img src="docs/images/vim-editing.png" width="40%" />
+  <img src="docs/images/vim-block-graph.png" width="40%" /> 
+</p>
 
 ### Structural diagram in Vim (`:v2 graph Vehicle`)
 
