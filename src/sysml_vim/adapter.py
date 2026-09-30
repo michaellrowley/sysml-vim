@@ -493,6 +493,7 @@ class SysMLLspAdapter:
             "port": "port_usage",
             "requirement": "requirement_usage",
             "state": "state_usage",
+            "view": "view_usage",
         }
         normalized_type = " ".join(element_type.lower().split())
         if normalized_type in usage_kinds:

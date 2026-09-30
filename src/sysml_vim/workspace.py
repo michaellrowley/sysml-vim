@@ -21,6 +21,7 @@ class WorkspaceIndex:
         self.parser_info: dict[str, Any] = {}
         self.source_snapshot: dict[str, tuple[int, int]] = {}
         self.document_overrides: dict[str, str] = {}
+        self.source_texts: dict[str, str] = {}
 
     def refresh(self, document_overrides: Mapping[str, str] | None = None) -> None:
         normalized_overrides = self._normalize_document_overrides(document_overrides)
@@ -29,6 +30,7 @@ class WorkspaceIndex:
         self.references_by_name.clear()
         self.parser_info.clear()
         self.source_snapshot.clear()
+        self.source_texts.clear()
 
         source_files = list(iter_model_files(self.root))
         parser_inputs = []
@@ -56,6 +58,10 @@ class WorkspaceIndex:
         self.files = {parsed.path: parsed for parsed in parsed_files}
         self.source_snapshot = source_snapshot
         self.document_overrides = normalized_overrides
+        self.source_texts = {
+            source["path"]: source["text"]
+            for source in parser_inputs
+        }
         for parsed in self.files.values():
             for symbol in parsed.symbols:
                 self.symbols_by_name.setdefault(symbol.name, []).append(symbol)
