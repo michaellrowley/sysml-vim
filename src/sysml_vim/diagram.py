@@ -47,6 +47,7 @@ class DiagramNode:
     id: str
     name: str
     kind: str
+    display_type: str | None
     file: str
     source_line: int
     container: str | None
@@ -54,6 +55,7 @@ class DiagramNode:
     features: list[DiagramFeature] = field(default_factory=list)
     kind_lines: list[str] = field(default_factory=list)
     name_lines: list[str] = field(default_factory=list)
+    type_lines: list[str] = field(default_factory=list)
     feature_lines: list[tuple[DiagramFeature, list[str]]] = field(default_factory=list)
     width: int = 0
     height: int = 0
@@ -71,6 +73,8 @@ class DiagramEdge:
     source_display: str
     target_display: str
     source_feature: str | None = None
+    target_feature: str | None = None
+    label: str | None = None
     route: list[tuple[int, int, str]] = field(default_factory=list)
 
 
@@ -239,12 +243,29 @@ def _feature_label(
     if type_name:
         return f"{name} : {type_name}"
     attributes = symbol.get("attributes", {})
+    if isinstance(attributes, dict):
+        for type_attribute in ("partType", "portType", "itemType", "attributeType"):
+            attribute_type = attributes.get(type_attribute)
+            if isinstance(attribute_type, str) and attribute_type.strip():
+                return f"{name} : {attribute_type.rsplit('::', 1)[-1]}"
     direction = attributes.get("direction") if isinstance(attributes, dict) else None
     if isinstance(direction, str) and direction:
         return f"{direction} {name}"
     signature = symbol.get("signature")
     if isinstance(signature, str) and signature:
-        return signature.strip().rstrip(";")
+        text = signature.strip().rstrip(";")
+        first, separator, remainder = text.partition(" ")
+        if separator and first in {
+            "action",
+            "attribute",
+            "item",
+            "part",
+            "port",
+            "requirement",
+            "state",
+        }:
+            return remainder
+        return text
     return name
 
 
@@ -321,6 +342,11 @@ def _build_diagram_nodes(
                 id=node_id,
                 name=symbol.get("name", ""),
                 kind=symbol.get("kind", "element"),
+                display_type=(
+                    symbol.get("attributes", {}).get("diagramType")
+                    if isinstance(symbol.get("attributes"), dict)
+                    else None
+                ),
                 file=symbol.get("file", ""),
                 source_line=symbol.get("range", {}).get("line", 0),
                 container=symbol.get("container"),
@@ -347,19 +373,43 @@ def _build_diagram_edges(
             feature_by_name[symbol.get("name", "")].append(symbol)
 
     diagram_edges = []
-    seen: set[tuple[str, str, str, str | None]] = set()
+    seen: set[tuple[str, str, str, str | None, str | None]] = set()
     for edge in edges:
         relation = edge.get("relation")
         if not isinstance(relation, str) or relation == "contains":
             continue
         edge_line = edge.get("range", {}).get("line")
         edge_line = edge_line if isinstance(edge_line, int) else None
+        source_feature_name = edge.get("source_feature")
+        target_feature_name = edge.get("target_feature")
+        source_feature_symbol = (
+            _pick_symbol(
+                feature_by_name.get(source_feature_name, []),
+                source_feature_name,
+                edge.get("file"),
+                edge_line,
+            )
+            if isinstance(source_feature_name, str)
+            else None
+        )
+        target_feature_symbol = (
+            _pick_symbol(
+                feature_by_name.get(target_feature_name, []),
+                target_feature_name,
+                edge.get("file"),
+                edge_line,
+            )
+            if isinstance(target_feature_name, str)
+            else None
+        )
         source_symbol = _pick_symbol(
             feature_by_name.get(edge.get("source", ""), []),
             edge.get("source", ""),
             edge.get("file"),
             edge_line,
         )
+        if source_feature_symbol is not None:
+            source_symbol = source_feature_symbol
         if source_symbol is None:
             source_symbol = _pick_symbol(
                 symbols,
@@ -374,6 +424,8 @@ def _build_diagram_edges(
             None,
             prefer_definition=True,
         )
+        if target_feature_symbol is not None:
+            target_symbol = target_feature_symbol
         if source_symbol is None or target_symbol is None:
             continue
 
@@ -384,7 +436,8 @@ def _build_diagram_edges(
         target_node = feature_owner.get(target_id, target_id)
         if source_node not in node_ids or target_node not in node_ids or source_node == target_node:
             continue
-        key = (source_node, target_node, relation, source_feature)
+        target_feature = target_id if target_id in feature_owner else None
+        key = (source_node, target_node, relation, source_feature, target_feature)
         if key in seen:
             continue
         seen.add(key)
@@ -399,8 +452,13 @@ def _build_diagram_edges(
                 target=target_node,
                 relation=relation,
                 source_display=source_display,
-                target_display=node_by_id[target_node].name,
+                target_display=(
+                    node_by_id[target_node].name
+                    + ("." + target_symbol.get("name", "") if target_feature else "")
+                ),
                 source_feature=source_feature,
+                target_feature=target_feature,
+                label=edge.get("label"),
             )
         )
     return diagram_edges
@@ -479,18 +537,32 @@ def _prepare_node_text(
     for node in nodes:
         feature_labels = [feature.label for feature in node.features]
         longest = max(
-            [_display_width(node.name), _display_width(f"«{node.kind.replace('_', ' ')}»")]
+            [
+                _display_width(node.name),
+                _display_width(node.display_type or ""),
+                _display_width(f"«{node.kind.replace('_', ' ')}»"),
+            ]
             + [_display_width(label) for label in feature_labels],
             default=0,
         )
         content_width = min(max_content_width, max(8, longest))
         node.kind_lines = _wrap(f"«{node.kind.replace('_', ' ')}»", content_width)
         node.name_lines = _wrap(node.name, content_width)
+        node.type_lines = (
+            _wrap(node.display_type, content_width)
+            if node.display_type
+            else []
+        )
         node.feature_lines = [
             (feature, _wrap(feature.label, content_width))
             for feature in node.features
         ]
-        next_feature_line = 2 + len(node.kind_lines) + len(node.name_lines)
+        next_feature_line = (
+            2
+            + len(node.kind_lines)
+            + len(node.name_lines)
+            + len(node.type_lines)
+        )
         for feature, lines in node.feature_lines:
             feature.line_index = next_feature_line
             next_feature_line += len(lines)
@@ -499,6 +571,7 @@ def _prepare_node_text(
             2
             + len(node.kind_lines)
             + len(node.name_lines)
+            + len(node.type_lines)
             + (1 if node.feature_lines else 0)
             + sum(len(lines) for _, lines in node.feature_lines)
         )
@@ -684,12 +757,17 @@ def _route_edges(
             source = node_by_id[edge.source]
             target = node_by_id[edge.target]
             feature_anchor = source_feature_by_id.get(edge.source_feature or "")
+            target_feature_anchor = source_feature_by_id.get(edge.target_feature or "")
             source_row = (
                 source.y + feature_anchor[1].line_index
                 if feature_anchor
                 else source.y + 1 + len(source.kind_lines)
             )
-            target_row = target.y + 1 + len(target.kind_lines)
+            target_row = (
+                target.y + target_feature_anchor[1].line_index
+                if target_feature_anchor
+                else target.y + 1 + len(target.kind_lines)
+            )
             start_x = source.x + source.width
             end_x = target.x
             lane_x = min(start_x + lane_index + 1, end_x - 2)
@@ -716,8 +794,18 @@ def _route_edges(
         target = node_by_id[edge.target]
         source_x = source.x + source.width // 2
         target_x = target.x + target.width // 2
-        source_y = source.y + source.height
-        target_y = target.y + target.height
+        source_feature = source_feature_by_id.get(edge.source_feature or "")
+        target_feature = source_feature_by_id.get(edge.target_feature or "")
+        source_y = (
+            source.y + source_feature[1].line_index
+            if source_feature
+            else source.y + source.height
+        )
+        target_y = (
+            target.y + target_feature[1].line_index
+            if target_feature
+            else target.y + target.height
+        )
         _add_route(
             edge,
             (source_x, source_y),
@@ -761,6 +849,8 @@ def _node_rows(node: DiagramNode) -> tuple[list[str], int, list[int]]:
         rows.append("│ " + text + " " * (content_width - _display_width(text)) + " │")
     name_offset = len(rows)
     for text in node.name_lines:
+        rows.append("│ " + text + " " * (content_width - _display_width(text)) + " │")
+    for text in node.type_lines:
         rows.append("│ " + text + " " * (content_width - _display_width(text)) + " │")
     feature_offsets = []
     if node.feature_lines:
@@ -835,6 +925,7 @@ def _draw_nodes(
                 "id": node.id,
                 "name": node.name,
                 "kind": node.kind,
+                "display_type": node.display_type,
                 "file": node.file,
                 "container": node.container,
                 "ancestors": list(node.ancestors),
@@ -943,7 +1034,10 @@ def render_graph_data(
             ),
             "layout": {"nodes": [], "edges": [], "width": 0, "height": 0},
         }
-    title = f"View Graph: {view.get('type', 'composition')} (structural diagram)"
+    title = view.get(
+        "title",
+        f"View Graph: {view.get('type', 'composition')} (structural diagram)",
+    )
     legend = ["Feature rows show containment; arrows show relationships"]
     header_lines = [title, legend[0], ""]
     canvas_start_line = len(header_lines) + 1
@@ -974,7 +1068,8 @@ def render_graph_data(
         edge_header_line = len(lines)
         for edge in layout.edges:
             summary = (
-                f"- {edge.source_display} -[{edge.relation}]-> {edge.target_display}"
+                f"- {edge.source_display} -[{edge.label or edge.relation}]-> "
+                f"{edge.target_display}"
             )
             summary_width = max_width - 2 if max_width is not None else _display_width(summary)
             edge_entry_line = len(lines) + 1
@@ -992,17 +1087,32 @@ def render_graph_data(
                 ),
                 None,
             )
+            target_feature = next(
+                (
+                    feature
+                    for feature in target_node.features
+                    if feature.id == edge.target_feature
+                ),
+                None,
+            )
             source_row = (
                 source_node.y + 1 + len(source_node.kind_lines)
                 if source_feature is None
                 else source_feature.line_index + source_node.y
             )
-            target_row = target_node.y + 1 + len(target_node.kind_lines)
+            target_row = (
+                target_feature.line_index + target_node.y
+                if target_feature
+                else target_node.y + 1 + len(target_node.kind_lines)
+            )
             edge_route_metadata.append(
                 {
                     "source": source_feature.name if source_feature else source_node.name,
-                    "target": target_node.name,
+                    "target": (
+                        target_feature.name if target_feature else target_node.name
+                    ),
                     "relation": edge.relation,
+                    "label": edge.label,
                     "line": edge_entry_line,
                     "col": _byte_column(summary, 3),
                     "source_line": canvas_start_line + source_row,

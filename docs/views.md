@@ -28,7 +28,11 @@ Vim command:
   between boxes; backward and cyclic relationships use an outer gutter.
   Unconnected definitions are packed into compact rows below connected
   structures. Box labels wrap to fit the available Vim window width.
-  Relationship labels are listed below the diagram.
+  Relationship labels are listed below the diagram. When `focus` names a
+  SysML view usage, the graph renders its exposed elements and their available
+  typing/connection relationships, restricted by the associated view
+  definition's `viewFilters`, instead of showing the view usage as a standalone
+  node.
 
 Within a graph buffer, arrow keys move to the nearest node in that direction.
 Use `]n` / `[n` to move through nodes in layout order and `]e` / `[e` to move

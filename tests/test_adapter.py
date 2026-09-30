@@ -80,6 +80,10 @@ def test_adapter_normalizes_multiline_lsp_ranges():
     assert converted_range == {"line": 2, "col": 8, "end_col": 8}
 
 
+def test_adapter_maps_view_usage_kind():
+    assert SysMLLspAdapter._symbol_kind("view") == "view_usage"
+
+
 @pytest.mark.parametrize(
     ("reported_version", "configured"),
     [("v18.20.0", False), ("v20.0.0", True)],
