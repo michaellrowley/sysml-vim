@@ -1050,6 +1050,7 @@ def render_dot(view: dict[str, Any]) -> str:
             node.get("name"): node_ids.get(node.get("id"))
             for node in graph_layout.get("nodes", [])
         }
+        feature_ports: dict[tuple[str, str], str] = {}
         for node in graph_layout.get("nodes", []):
             label_lines = [
                 str(node.get("name", "")),
@@ -1057,28 +1058,55 @@ def render_dot(view: dict[str, Any]) -> str:
             ]
             if node.get("display_type"):
                 label_lines.append(f": {node['display_type']}")
-            feature_labels = [
-                feature.get("label", "")
+            node_features = [
+                feature
                 for feature in node.get("features", [])
                 if feature.get("label")
             ]
-            if feature_labels:
-                label_lines.append("\\n".join(feature_labels))
-            shape = {
-                "interconnection": "box",
-                "action_flow": (
-                    "ellipse"
-                    if "action" in str(node.get("kind", "")).lower()
-                    else "box"
-                ),
-                "state_transition": "box",
-                "sequence": "plaintext",
-                "geometry": "ellipse",
-                "grid": "record",
-                "browser": "plaintext",
-            }.get(presentation, "box")
+            if presentation == "interconnection" and node_features:
+                feature_fields = []
+                for feature_index, feature in enumerate(node_features):
+                    port_id = f"feature{feature_index}"
+                    feature_ports[(node.get("id", ""), feature.get("name", ""))] = (
+                        port_id
+                    )
+                    feature_label = str(feature["label"])
+                    if feature.get("kind", "").lower() == "port_usage":
+                        feature_label = f"● {feature_label}"
+                    feature_fields.append(
+                        f"<{port_id}>{_dot_record_escape(feature_label)}"
+                    )
+                node_label = (
+                    "{"
+                    + _dot_record_escape("\n".join(label_lines))
+                    + "|{"
+                    + "|".join(feature_fields)
+                    + "}}"
+                )
+                shape = "record"
+            else:
+                feature_labels = [
+                    feature.get("label", "")
+                    for feature in node_features
+                ]
+                if feature_labels:
+                    label_lines.append("\\n".join(feature_labels))
+                node_label = chr(10).join(label_lines)
+                shape = {
+                    "interconnection": "box",
+                    "action_flow": (
+                        "ellipse"
+                        if "action" in str(node.get("kind", "")).lower()
+                        else "box"
+                    ),
+                    "state_transition": "box",
+                    "sequence": "plaintext",
+                    "geometry": "ellipse",
+                    "grid": "record",
+                    "browser": "plaintext",
+                }.get(presentation, "box")
             attributes = [
-                f"label={_dot_quote(chr(10).join(label_lines))}",
+                f"label={_dot_quote(node_label)}",
                 f"shape={_dot_quote(shape)}",
             ]
             if presentation == "geometry" and isinstance(
@@ -1102,6 +1130,9 @@ def render_dot(view: dict[str, Any]) -> str:
             if not source or not target:
                 continue
             relation = str(edge.get("label") or edge.get("relation", "related"))
+            flow_item = edge.get("flow_item")
+            if flow_item:
+                relation = f"{relation}: {flow_item}"
             source_feature = edge.get("source_feature")
             target_feature = edge.get("target_feature")
             if source_feature or target_feature:
@@ -1119,6 +1150,12 @@ def render_dot(view: dict[str, Any]) -> str:
                 else ""
             )
             attributes = [f"label={_dot_quote(relation)}"]
+            source_port = feature_ports.get((source_id, source_feature or ""))
+            target_port = feature_ports.get((target_id, target_feature or ""))
+            if source_port:
+                attributes.append(f"tailport={_dot_quote(source_port)}")
+            if target_port:
+                attributes.append(f"headport={_dot_quote(target_port)}")
             if edge_style:
                 attributes.append(edge_style)
             lines.append(
@@ -1157,6 +1194,13 @@ def _dot_quote(text: str) -> str:
         .replace("\n", "\\n")
     )
     return f'"{escaped}"'
+
+
+def _dot_record_escape(text: str) -> str:
+    escaped = text.replace("\\", "\\\\")
+    for character in ("{", "}", "<", ">", "|"):
+        escaped = escaped.replace(character, f"\\{character}")
+    return escaped
 
 
 def render_svg(view: dict[str, Any]) -> str:

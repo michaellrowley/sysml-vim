@@ -729,6 +729,97 @@ def test_interconnection_view_uses_parts_ports_and_interface_edges():
         and edge["route_cells"]
         for edge in rendered["layout"]["edges"]
     )
+    ports = {
+        port["name"]: port
+        for node in rendered["layout"]["nodes"]
+        for port in node["ports"]
+    }
+    assert ports["outlet"]["side"] == "right"
+    assert ports["inlet"]["side"] == "left"
+    assert "●" in rendered["graph"]
+    graph_lines = rendered["graph"].splitlines()
+    for port in ports.values():
+        port_line = graph_lines[port["line"] - 1]
+        assert port_line.encode("utf-8")[
+            port["col"] - 1 : port["col"] - 1 + len("●".encode("utf-8"))
+        ].decode("utf-8") == "●"
+    connection = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+    assert connection["source_line"] == ports["outlet"]["line"]
+    assert connection["target_line"] == ports["inlet"]["line"]
+    assert [
+        connection["source_line"],
+        ports["outlet"]["display_col"] + 1,
+    ] in connection["route_cells"]
+    assert [
+        connection["target_line"],
+        ports["inlet"]["display_col"] - 1,
+    ] in connection["route_cells"]
+
+    dot = render_dot(view)
+    assert "shape=\"record\"" in dot
+    assert "● outlet : DataPort" in dot
+    assert "tailport=\"feature0\"" in dot
+    assert "headport=\"feature0\"" in dot
+
+
+def test_interconnection_view_marks_projected_item_flows_on_edges():
+    index = _standard_view_index("InterconnectionView")
+    symbols = index.symbols()
+    symbols.extend(
+        [
+            {
+                "name": "payloadOut",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 13, "col": 0, "end_col": 10},
+                "container": "Alpha",
+                "ancestors": ["System", "Alpha"],
+                "attributes": {"itemType": "Payload"},
+            },
+            {
+                "name": "payloadIn",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 14, "col": 0, "end_col": 9},
+                "container": "Beta",
+                "ancestors": ["System", "Beta"],
+                "attributes": {"itemType": "Payload"},
+            },
+        ]
+    )
+    reference = Reference(
+        name="payloadIn",
+        file="/workspace/model.sysml",
+        range=Range(14, 0, 9),
+        relation="item_flow",
+        source="payloadOut",
+    )
+    index.references_by_name[reference.name] = [reference]
+
+    view = build_view(index, "composition", focus="bleTraceView", depth=5)
+    rendered = render_graph_data(view, focus="bleTraceView", depth=5)
+
+    flow_edge = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    )
+    assert flow_edge["flow_item"] == "payloadIn : Payload"
+    assert "◆" in rendered["graph"]
+    assert (
+        "- Alpha.payloadOut -[item_flow: payloadIn : Payload]-> "
+        "Beta.payloadIn"
+    ) in rendered["graph"]
+    graph_lines = rendered["graph"].splitlines()
+    assert any(
+        graph_lines[line - 1][column - 1] == "◆"
+        for line, column in flow_edge["route_cells"]
+    )
+    assert "item_flow: payloadIn : Payload" in render_dot(view)
 
 
 def test_interconnection_view_resolves_ports_through_part_usage_types():

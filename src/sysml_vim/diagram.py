@@ -83,6 +83,7 @@ class DiagramFeature:
     kind: str
     label: str
     line_index: int = 0
+    port_sides: set[str] = field(default_factory=set)
 
 
 @dataclass(slots=True)
@@ -118,6 +119,7 @@ class DiagramEdge:
     source_feature: str | None = None
     target_feature: str | None = None
     label: str | None = None
+    flow_item: str | None = None
     route: list[tuple[int, int, str]] = field(default_factory=list)
 
 
@@ -613,6 +615,22 @@ def _build_diagram_edges(
         if key in seen:
             continue
         seen.add(key)
+        flow_item = None
+        if presentation == "interconnection" and relation.lower() in {
+            "flow",
+            "flow_connection",
+            "item_flow",
+        }:
+            for flow_symbol in (target_symbol, source_symbol):
+                flow_kind = flow_symbol.get("kind", "").lower()
+                if (
+                    flow_kind in {"item_usage", "item_def"}
+                    or "flow" in flow_kind
+                ):
+                    flow_item = _feature_label(flow_symbol, None)
+                    break
+            if flow_item is None and isinstance(edge.get("label"), str):
+                flow_item = edge["label"]
         node_by_id = {node.id: node for node in nodes}
         source_display = node_by_id[source_node].name
         if source_feature:
@@ -631,9 +649,34 @@ def _build_diagram_edges(
                 source_feature=source_feature,
                 target_feature=target_feature,
                 label=edge.get("label"),
+                flow_item=flow_item,
             )
         )
     return diagram_edges
+
+
+def _mark_interconnection_ports(
+    nodes: list[DiagramNode],
+    edges: list[DiagramEdge],
+    presentation: str | None,
+) -> None:
+    if presentation != "interconnection":
+        return
+    features_by_id = {
+        feature.id: feature
+        for node in nodes
+        for feature in node.features
+    }
+    for edge in edges:
+        source_feature = features_by_id.get(edge.source_feature or "")
+        if source_feature and source_feature.kind.lower() == "port_usage":
+            source_feature.port_sides.add("right")
+        target_feature = features_by_id.get(edge.target_feature or "")
+        if target_feature and target_feature.kind.lower() == "port_usage":
+            target_feature.port_sides.add("left")
+    for feature in features_by_id.values():
+        if feature.kind.lower() == "port_usage" and not feature.port_sides:
+            feature.port_sides.add("right")
 
 
 def _assign_ranks(nodes: list[DiagramNode], edges: list[DiagramEdge]) -> None:
@@ -1012,22 +1055,48 @@ def _route_edges(
         target_x = target.x + target.width // 2
         source_feature = source_feature_by_id.get(edge.source_feature or "")
         target_feature = source_feature_by_id.get(edge.target_feature or "")
-        source_y = (
-            source.y + source_feature[1].line_index
-            if source_feature
-            else source.y + source.height
-        )
-        target_y = (
-            target.y + target_feature[1].line_index
-            if target_feature
-            else target.y + target.height
-        )
+        if source_feature:
+            source_x = source.x + source.width
+            source_y = source.y + source_feature[1].line_index
+        else:
+            source_y = source.y + source.height
+        if target_feature:
+            target_x = target.x - 1
+            target_y = target.y + target_feature[1].line_index
+        else:
+            target_y = target.y + target.height
         _add_route(
             edge,
             (source_x, source_y),
             (target_x, target_y),
             outer_y=outer_lane_y + index * 2,
         )
+
+
+def _mark_flow_routes(edges: list[DiagramEdge]) -> None:
+    flow_relations = {"flow", "flow_connection", "item_flow"}
+    for edge in edges:
+        if edge.relation.lower() not in flow_relations:
+            continue
+        horizontal_by_row: dict[int, list[int]] = defaultdict(list)
+        for x, y, glyph in edge.route:
+            if {"E", "W"} & _GLYPH_ROUTES.get(glyph, frozenset()):
+                horizontal_by_row[y].append(x)
+        if not horizontal_by_row:
+            continue
+        row = max(horizontal_by_row, key=lambda item: len(horizontal_by_row[item]))
+        columns = sorted(horizontal_by_row[row])
+        marker_column = columns[len(columns) // 2]
+        edge.route = [
+            (x, y, "◆" if (x, y) == (marker_column, row) else glyph)
+            for x, y, glyph in edge.route
+        ]
+
+
+def _diagram_edge_label(edge: DiagramEdge) -> str:
+    if edge.flow_item:
+        return f"{edge.label or edge.relation}: {edge.flow_item}"
+    return edge.label or edge.relation
 
 
 def _canvas_text(canvas: list[list[str]], x: int, y: int, text: str) -> None:
@@ -1116,6 +1185,29 @@ def _draw_nodes(
         rows, name_offset, _ = _node_rows(node)
         for row_index, row in enumerate(rows):
             _canvas_text(canvas, node.x, node.y + row_index, row)
+        ports = []
+        for feature in node.features:
+            if feature.kind.lower() != "port_usage":
+                continue
+            feature_row_index = node.y + feature.line_index
+            for side in sorted(feature.port_sides):
+                marker_column = (
+                    node.x if side == "left" else node.x + node.width - 1
+                )
+                canvas[feature_row_index][marker_column] = "●"
+                ports.append(
+                    {
+                        "id": feature.id,
+                        "name": feature.name,
+                        "side": side,
+                        "line": canvas_start_line + feature_row_index,
+                        "display_col": marker_column + 1,
+                        "col": _canvas_byte_column(
+                            canvas[feature_row_index],
+                            marker_column + 1,
+                        ),
+                    }
+                )
         name_line = node.y + name_offset
         name_row = canvas[name_line]
         node_top = canvas_start_line + node.y
@@ -1154,6 +1246,7 @@ def _draw_nodes(
                 "left_col": left_byte,
                 "right_col": right_byte,
                 "features": features,
+                "ports": ports,
             }
         )
     return node_metadata
@@ -1255,6 +1348,7 @@ def _layout_graph(
         feature_owner,
         presentation,
     )
+    _mark_interconnection_ports(nodes, diagram_edges, presentation)
     _assign_ranks(nodes, diagram_edges)
     max_content_width = (
         48
@@ -2245,6 +2339,8 @@ def render_graph_data(
             (x, y, glyph_map.get(character, character))
             for x, y, character in edge.route
         ]
+    _mark_flow_routes(layout.edges)
+    for edge in layout.edges:
         for x, y, character in edge.route:
             _put_route(canvas, x, y, character)
 
@@ -2261,7 +2357,7 @@ def render_graph_data(
         edge_header_line = len(lines)
         for edge in layout.edges:
             summary = (
-                f"- {edge.source_display} -[{edge.label or edge.relation}]-> "
+                f"- {edge.source_display} -[{_diagram_edge_label(edge)}]-> "
                 f"{edge.target_display}"
             )
             summary_width = max_width - 2 if max_width is not None else _display_width(summary)
@@ -2312,6 +2408,7 @@ def render_graph_data(
                     ),
                     "relation": edge.relation,
                     "label": edge.label,
+                    "flow_item": edge.flow_item,
                     "line": edge_entry_line,
                     "col": _byte_column(summary, 3),
                     "source_line": canvas_start_line + source_row,

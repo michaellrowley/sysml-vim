@@ -33,10 +33,12 @@ relevant projection/rendering code in `render.py` or `diagram.py`.
   that depends on partial LSP attributes or relationships.
 - For interconnection diagrams, keep projected features with their part owner.
   Follow projected part-usage/type-definition chains for declared features and
-  attach those features to the exposed part usage. Do not promote unowned
-  interface-end or definition features to peer parts; omit them when the
-  projection does not connect them to a part, while retaining connector
-  relationships that are projected between parts.
+  attach those features to the exposed part usage. Mark projected ports on the
+  node border and route supported connection edges to those markers; annotate
+  projected item-flow relationships with their item when available. Do not
+  promote unowned interface-end or definition features to peer parts; omit them
+  when the projection does not connect them to a part, while retaining
+  connector relationships that are projected between parts.
 - Structural graph output is also consumed by editor navigation and highlighting.
   Preserve stable node/edge identity and valid geometry when changing its
   structured output; account for terminal display width when laying out text.

@@ -36,7 +36,7 @@ sysml-vim renders their documented intent as follows:
 | Standard view definition | Presentation |
 | --- | --- |
 | `GeneralView` | General node-and-edge graph of exposed model elements and available relationships. |
-| `InterconnectionView` | Part usages are nodes; nested part usages and projected features found through their part-type chain are grouped with their owners. Port features anchor projected connection edges when their ownership and endpoints are available; connector or interface usages label those edges. Unowned interface-end features are omitted rather than shown as peer parts. Definition-only nodes are omitted. |
+| `InterconnectionView` | Part usages are nodes; nested part usages and projected features found through their part-type chain are grouped with their owners. Port features are marked with dots on the node border and anchor projected connection edges when their ownership and endpoints are available. Projected item-flow edges show a directional route marker and identify the projected item when available; connector or interface usages label connection edges. Unowned interface-end features are omitted rather than shown as peer parts. Definition-only nodes are omitted. |
 | `ActionFlowView` | Actions and control nodes are promoted to nodes; parts can provide context, parameters are shown with direction when projected, and flow, binding, and succession relationships are edges. |
 | `StateTransitionView` | State usages are nodes, nested states remain visible, and projected transitions are routed between states, including self-transitions. Actions owned by states remain state features. |
 | `SequenceView` | Exposed participant features form horizontal lifelines; projected event/action usages and messages are placed top-to-bottom by source location. The source order is a presentation order, not simulated execution time. |
@@ -82,7 +82,11 @@ Vim command:
   node. Package wildcard exposures such as `Package::**` expand recursively
   within the resolved package scope. Named interface connection usages are
   rendered as labeled edges when declared with `connect`, including typed
-  interface usages.
+  interface usages. For `InterconnectionView`, dots on part-node borders mark
+  projected ports and connection routes meet those dots. Projected item-flow
+  relationships use a `◆` route marker and include the item label when the
+  projection exposes one. DOT/SVG output uses record fields to anchor edges to
+  projected feature rows.
 
 Within a graph buffer, arrow keys trace outward from the selected box and move
 to the first node hit in that direction. If no ray intersects a node, they
