@@ -13,18 +13,62 @@ Supported view types:
 
 Formats:
 
-- text (terminal-friendly)
-- dot (Graphviz)
-- svg (if Graphviz `dot` is installed)
+- text (terminal-friendly; standard view presentations use their view-specific layout)
+- dot (Graphviz; uses the selected presentation's nodes and relationships)
+- svg (if Graphviz `dot` is installed; geometry views use its `neato` layout engine)
 - json
 - graph (structural diagram with typed definition boxes and feature compartments)
 - graph-json (graph text and structured geometry for editor integrations)
 
+## Standard SysML v2 view definitions
+
+When `focus` names a SysML view usage, sysml-vim resolves its declared view
+definition from the LSP projection or typing relationship. It follows projected
+specialization and type attributes, so a project-specific view definition can
+inherit a standard presentation. The view usage name does not select the style.
+A view whose type cannot be resolved to one of the standard definitions below
+keeps the existing generic graph presentation.
+
+The standard definitions are listed in the OMG SysML v2 standard library's
+[StandardViewDefinitions.sysml](https://github.com/Systems-Modeling/SysML-v2-Release/blob/master/sysml.library/Systems%20Library/StandardViewDefinitions.sysml).
+sysml-vim renders their documented intent as follows:
+
+| Standard view definition | Presentation |
+| --- | --- |
+| `GeneralView` | General node-and-edge graph of exposed model elements and available relationships. |
+| `InterconnectionView` | Part usages are nodes; nested part usages and projected features found through their part-type chain are grouped with their owners. Port features anchor projected connection edges when their ownership and endpoints are available; connector or interface usages label those edges. Unowned interface-end features are omitted rather than shown as peer parts. Definition-only nodes are omitted. |
+| `ActionFlowView` | Actions and control nodes are promoted to nodes; parts can provide context, parameters are shown with direction when projected, and flow, binding, and succession relationships are edges. |
+| `StateTransitionView` | State usages are nodes, nested states remain visible, and projected transitions are routed between states, including self-transitions. Actions owned by states remain state features. |
+| `SequenceView` | Exposed participant features form horizontal lifelines; projected event/action usages and messages are placed top-to-bottom by source location. The source order is a presentation order, not simulated execution time. |
+| `GeometryView` | Numeric projected positions are shown in XY, and also XZ/YZ orthographic plots when 3D coordinates are available. Unlocated elements remain in the coordinate inventory. If positions are absent, the view reports that and shows an inventory instead of inventing placement. This is not a solid-shape or full 3D geometry renderer. |
+| `GridView` | Exposed elements appear in a width-aware table with kind, type, owner, and projected relationships; edges are also listed for navigation. |
+| `BrowserView` | Exposed elements appear as a hierarchy. In Vim/Neovim graph buffers, indentation folds make branches expandable and collapsible (`zc` / `zo`, `zM` / `zR`). |
+
+The view's `viewFilters` and exposures still select model elements; the resolved
+view definition selects how those elements are presented. Graph and graph-json
+layouts include a `presentation` field for editor integrations. Text, DOT, and
+SVG rendering use the same resolved presentation. For example:
+
+```vim
+:V2g bleTraceView
+:v2 view composition bleTraceView
+```
+
+```sh
+sysml view composition --focus bleTraceView --format graph
+sysml view composition --focus bleTraceView --format graph-json
+```
+
+Only relationships and attributes present in the language-server projection
+are rendered. In particular, sequence order is based on source locations and
+geometry is limited to numeric projected positions; neither is inferred from
+SysML syntax or claimed to be a complete semantic rendering.
+
 Vim command:
 
 - `:v2 graph [focus]` renders a Cameo-inspired structural diagram in a Vim
-  buffer. Definitions are shown as boxes with kind/name headers and contained
-  usages in feature compartments. Forward relationships use orthogonal routes
+  buffer. For the generic graph, definitions are shown as boxes with kind/name
+  headers and contained usages in feature compartments. Forward relationships use orthogonal routes
   between boxes; backward and cyclic relationships use an outer gutter.
   Unconnected definitions are packed into compact rows below connected
   structures. Box labels wrap to fit the available Vim window width.

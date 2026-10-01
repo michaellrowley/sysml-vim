@@ -382,5 +382,33 @@ if empty(filter(
   cquit 28
 endif
 
+let s:standard_view_file =
+      \ s:repository_root . '/tests/fixtures/standard_views/standard_views.sysml'
+execute 'tabnew ' . fnameescape(s:standard_view_file)
+execute 'lcd ' . fnameescape(fnamemodify(s:standard_view_file, ':h'))
+if &filetype !=# 'sysml'
+  setfiletype sysml
+endif
+call sysml#graph('bleTraceView')
+if get(get(b:, 'sysml_graph_layout', {}), 'presentation', '') !=# 'browser'
+      \ || &l:foldmethod !=# 'indent'
+  cquit 37
+endif
+let s:browser_root_line = search('Root \[part usage\]')
+let s:browser_child_line = search('Child \[part usage\]')
+let s:browser_leaf_line = search('Leaf \[part usage\]')
+if s:browser_root_line <= 0 || s:browser_child_line <= s:browser_root_line
+      \ || s:browser_leaf_line <= s:browser_child_line
+  cquit 38
+endif
+normal zM
+if foldclosed(s:browser_leaf_line) < 0
+  cquit 39
+endif
+normal zR
+if foldclosed(s:browser_leaf_line) >= 0
+  cquit 40
+endif
+
 call delete(s:workspace_b, 'rf')
 quitall!

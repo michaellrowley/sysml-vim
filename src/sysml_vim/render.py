@@ -11,6 +11,22 @@ from .model import Reference
 from .workspace import WorkspaceIndex
 
 _VIEW_TYPE_ATTRIBUTES = ("partType", "portType", "itemType", "attributeType")
+_VIEW_DEFINITION_ATTRIBUTES = (
+    "partType",
+    "viewType",
+    "viewDefinition",
+    "view_definition",
+)
+_STANDARD_VIEW_PRESENTATIONS = {
+    "generalview": "general",
+    "interconnectionview": "interconnection",
+    "actionflowview": "action_flow",
+    "statetransitionview": "state_transition",
+    "sequenceview": "sequence",
+    "geometryview": "geometry",
+    "gridview": "grid",
+    "browserview": "browser",
+}
 _CONNECT_ENDPOINTS = re.compile(
     r"([A-Za-z_]\w*(?:::[A-Za-z_]\w*)*(?:\.[A-Za-z_]\w*)?)"
     r"\s+to\s+"
@@ -203,11 +219,140 @@ def _view_kind_is_allowed(kind: str, filter_kinds: set[str]) -> bool:
     return kind == "interface" and "connection_usage" in filter_kinds
 
 
+def _qualified_name_parts(name: str) -> tuple[str, ...]:
+    return tuple(
+        part.strip()
+        for part in name.strip().lstrip("@").split("::")
+        if part.strip()
+    )
+
+
+def _view_definition_candidates(
+    symbols: list[dict[str, Any]],
+    name: str,
+    view_symbols: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    definitions = [
+        symbol
+        for symbol in symbols
+        if symbol["kind"].lower() in {"view_def", "view_definition"}
+    ]
+    name_parts = _qualified_name_parts(name)
+    if not name_parts:
+        return []
+    if len(name_parts) > 1:
+        candidates = [
+            symbol
+            for symbol in definitions
+            if _symbol_qualified_path(symbol)[-len(name_parts) :] == name_parts
+        ]
+        if not candidates:
+            candidates = [
+                symbol
+                for symbol in definitions
+                if symbol["name"] == name_parts[-1]
+            ]
+    else:
+        candidates = [
+            symbol for symbol in definitions if symbol["name"] == name_parts[-1]
+        ]
+    if len(candidates) <= 1:
+        return candidates
+
+    same_file = {
+        symbol["file"]
+        for symbol in view_symbols
+        if isinstance(symbol.get("file"), str)
+    }
+    local_candidates = [
+        candidate for candidate in candidates if candidate["file"] in same_file
+    ]
+    if len(local_candidates) == 1:
+        return local_candidates
+    if local_candidates:
+        candidates = local_candidates
+
+    view_paths = [_symbol_qualified_path(symbol)[:-1] for symbol in view_symbols]
+
+    def context_score(candidate: dict[str, Any]) -> int:
+        candidate_path = _symbol_qualified_path(candidate)[:-1]
+        scores = []
+        for view_path in view_paths:
+            score = 0
+            for left, right in zip(candidate_path, view_path):
+                if left != right:
+                    break
+                score += 1
+            scores.append(score)
+        return max(scores, default=0)
+
+    scores = [context_score(candidate) for candidate in candidates]
+    best_score = max(scores)
+    best_candidates = [
+        candidate
+        for candidate, score in zip(candidates, scores)
+        if score == best_score
+    ]
+    return best_candidates if len(best_candidates) == 1 else []
+
+
+def _reference_targets_definition(
+    reference: Reference,
+    definition: dict[str, Any],
+) -> bool:
+    if not isinstance(reference.source, str):
+        return False
+    source_parts = _qualified_name_parts(reference.source)
+    if not source_parts:
+        return False
+    if len(source_parts) > 1:
+        return (
+            _symbol_qualified_path(definition)[-len(source_parts) :]
+            == source_parts
+        )
+    return (
+        source_parts[-1] == definition["name"]
+        and reference.file == definition["file"]
+    )
+
+
+def _definition_specializations(
+    definition: dict[str, Any],
+    refs: list[Reference],
+) -> list[str]:
+    names = []
+    attributes = definition.get("attributes", {})
+    if isinstance(attributes, dict):
+        for attribute_name in (
+            "specializes",
+            "specialization",
+            "superTypes",
+            *_VIEW_DEFINITION_ATTRIBUTES,
+        ):
+            value = attributes.get(attribute_name)
+            values = value if isinstance(value, (list, tuple)) else [value]
+            names.extend(
+                item.strip().lstrip("@")
+                for item in values
+                if isinstance(item, str) and item.strip()
+            )
+    names.extend(
+        reference.name.strip().lstrip("@")
+        for reference in refs
+        if _reference_targets_definition(reference, definition)
+        and (reference.relation or "").lower()
+        in {"specializes", "specialization", "type", "typed_by", "typing"}
+    )
+    return names
+
+
 def _view_filter_kinds(
     symbols: list[dict[str, Any]],
     view_symbols: list[dict[str, Any]],
+    refs: list[Reference] = (),
 ) -> set[str] | None:
     filter_values = []
+    pending = _view_definition_names(view_symbols, refs)
     for view_symbol in view_symbols:
         attributes = view_symbol.get("attributes", {})
         if not isinstance(attributes, dict):
@@ -217,30 +362,28 @@ def _view_filter_kinds(
             filter_values.extend(view_filters.split(","))
         elif isinstance(view_filters, (list, tuple)):
             filter_values.extend(view_filters)
-        part_type = attributes.get("partType")
-        if not isinstance(part_type, str):
-            continue
-        part_type_name = part_type.rsplit("::", 1)[-1]
-        definitions = [
-            symbol
-            for symbol in symbols
-            if symbol["name"] == part_type_name
-            and symbol["kind"].lower() in {"view_def", "view_definition"}
-        ]
-        view_file = view_symbol["file"]
-        definition = next(
-            (symbol for symbol in definitions if symbol["file"] == view_file),
-            definitions[0] if definitions else None,
+
+    visited: set[tuple[str, str, Any, Any]] = set()
+    while pending:
+        definition_name = pending.pop(0)
+        candidates = _view_definition_candidates(
+            symbols,
+            definition_name,
+            view_symbols,
         )
-        definition_attributes = (
-            definition.get("attributes", {}) if definition else {}
-        )
-        if isinstance(definition_attributes, dict):
-            definition_filters = definition_attributes.get("viewFilters", [])
-            if isinstance(definition_filters, str):
-                filter_values.extend(definition_filters.split(","))
-            elif isinstance(definition_filters, (list, tuple)):
-                filter_values.extend(definition_filters)
+        for definition in candidates:
+            identity = _symbol_identity(definition)
+            if identity in visited:
+                continue
+            visited.add(identity)
+            attributes = definition.get("attributes", {})
+            if isinstance(attributes, dict):
+                definition_filters = attributes.get("viewFilters", [])
+                if isinstance(definition_filters, str):
+                    filter_values.extend(definition_filters.split(","))
+                elif isinstance(definition_filters, (list, tuple)):
+                    filter_values.extend(definition_filters)
+            pending.extend(_definition_specializations(definition, refs))
 
     kinds = set()
     for value in filter_values:
@@ -257,6 +400,84 @@ def _view_filter_kinds(
     return kinds or None
 
 
+def _view_definition_names(
+    view_symbols: list[dict[str, Any]],
+    refs: list[Reference],
+) -> list[str]:
+    names = []
+    view_names = {symbol["name"] for symbol in view_symbols}
+    view_files = {symbol["file"] for symbol in view_symbols}
+    for view_symbol in view_symbols:
+        attributes = view_symbol.get("attributes", {})
+        if isinstance(attributes, dict):
+            for attribute_name in _VIEW_DEFINITION_ATTRIBUTES:
+                value = attributes.get(attribute_name)
+                values = value if isinstance(value, (list, tuple)) else [value]
+                names.extend(
+                    item.strip().lstrip("@")
+                    for item in values
+                    if isinstance(item, str) and item.strip()
+                )
+    names.extend(
+        ref.name.strip().lstrip("@")
+        for ref in refs
+        if isinstance(ref.source, str)
+        and ref.source.rsplit("::", 1)[-1] in view_names
+        and ref.file in view_files
+        and (ref.relation or "").lower() in {"type", "typed_by", "typing"}
+    )
+    return list(
+        dict.fromkeys(name for name in names if isinstance(name, str) and name)
+    )
+
+
+def _view_presentation(
+    symbols: list[dict[str, Any]],
+    refs: list[Reference],
+    view_symbols: list[dict[str, Any]],
+) -> str | None:
+    pending = _view_definition_names(view_symbols, refs)
+    visited: set[tuple[str, str, Any, Any]] = set()
+    while pending:
+        definition_name = pending.pop(0)
+        definition_parts = _qualified_name_parts(definition_name)
+        if not definition_parts:
+            continue
+        candidates = _view_definition_candidates(
+            symbols,
+            definition_name,
+            view_symbols,
+        )
+        if not candidates:
+            has_matching_definition = any(
+                symbol["kind"].lower() in {"view_def", "view_definition"}
+                and symbol["name"] == definition_parts[-1]
+                for symbol in symbols
+            )
+            normalized_name = re.sub(r"[^a-z]", "", definition_parts[-1].lower())
+            presentation = _STANDARD_VIEW_PRESENTATIONS.get(normalized_name)
+            if presentation and (
+                not has_matching_definition
+                or "StandardViewDefinitions" in definition_parts
+            ):
+                return presentation
+            continue
+
+        for definition in candidates:
+            identity = _symbol_identity(definition)
+            if identity in visited:
+                continue
+            visited.add(identity)
+            normalized_name = re.sub(
+                r"[^a-z]", "", definition["name"].lower()
+            )
+            presentation = _STANDARD_VIEW_PRESENTATIONS.get(normalized_name)
+            if presentation:
+                return presentation
+            pending.extend(_definition_specializations(definition, refs))
+    return None
+
+
 def _diagram_type(symbol: dict[str, Any]) -> str | None:
     attributes = symbol.get("attributes", {})
     if not isinstance(attributes, dict):
@@ -266,6 +487,104 @@ def _diagram_type(symbol: dict[str, Any]) -> str | None:
         if isinstance(type_name, str) and type_name.strip():
             return type_name.rsplit("::", 1)[-1]
     return None
+
+
+def _projected_type_names(symbol: dict[str, Any]) -> list[str]:
+    attributes = symbol.get("attributes", {})
+    if not isinstance(attributes, dict):
+        return []
+    names = []
+    for attribute_name in _VIEW_TYPE_ATTRIBUTES:
+        value = attributes.get(attribute_name)
+        values = value if isinstance(value, (list, tuple)) else [value]
+        names.extend(
+            item.strip().lstrip("@")
+            for item in values
+            if isinstance(item, str) and item.strip()
+        )
+    return names
+
+
+def _projected_type_candidates(
+    symbols: list[dict[str, Any]],
+    type_name: str,
+    source_file: str | None,
+) -> list[dict[str, Any]]:
+    name_parts = _qualified_name_parts(type_name)
+    if not name_parts:
+        return []
+    candidates = [
+        symbol
+        for symbol in symbols
+        if (
+            _symbol_qualified_path(symbol)[-len(name_parts) :] == name_parts
+            if len(name_parts) > 1
+            else symbol["name"] == name_parts[-1]
+        )
+    ]
+    if not candidates and len(name_parts) > 1:
+        candidates = [
+            symbol for symbol in symbols if symbol["name"] == name_parts[-1]
+        ]
+    if len(candidates) <= 1:
+        return candidates
+    same_file = [
+        candidate
+        for candidate in candidates
+        if candidate.get("file") == source_file
+    ]
+    if len(same_file) == 1:
+        return same_file
+    return []
+
+
+def _projected_part_type_features(
+    part_usage: dict[str, Any],
+    symbols: list[dict[str, Any]],
+    refs: list[Reference],
+    filter_kinds: set[str] | None,
+) -> list[dict[str, Any]]:
+    pending = _projected_type_names(part_usage)
+    visited: set[tuple[str, str, Any, Any]] = set()
+    features = []
+    feature_kinds = {
+        "part_usage",
+        "port_usage",
+        "item_usage",
+        "attribute_usage",
+    }
+    while pending:
+        type_name = pending.pop(0)
+        for type_symbol in _projected_type_candidates(
+            symbols,
+            type_name,
+            part_usage.get("file"),
+        ):
+            identity = _symbol_identity(type_symbol)
+            if identity in visited:
+                continue
+            visited.add(identity)
+            kind = type_symbol["kind"].lower()
+            if kind == "part_usage" or kind == "part_def":
+                features.extend(
+                    feature
+                    for feature in symbols
+                    if feature.get("container") == type_symbol["name"]
+                    and feature.get("file") == type_symbol.get("file")
+                    and feature.get("kind", "").lower() in feature_kinds
+                    and (
+                        filter_kinds is None
+                        or _view_kind_is_allowed(
+                            feature["kind"].lower(),
+                            filter_kinds,
+                        )
+                    )
+                )
+            if kind.endswith("_def") or kind.endswith("_definition"):
+                pending.extend(_definition_specializations(type_symbol, refs))
+            else:
+                pending.extend(_projected_type_names(type_symbol))
+    return features
 
 
 def _view_composition(
@@ -287,6 +606,7 @@ def _view_composition(
     if not view_symbols:
         return None
 
+    presentation = _view_presentation(symbols, refs, view_symbols)
     view_files = {symbol["file"] for symbol in view_symbols}
     view_scope = {focus}
     view_scope.update(
@@ -301,7 +621,7 @@ def _view_composition(
         and ref.source in view_scope
     ]
     explicit_exposed_names = {ref.name for ref in exposure_refs}
-    filter_kinds = _view_filter_kinds(symbols, view_symbols)
+    filter_kinds = _view_filter_kinds(symbols, view_symbols, refs)
     wildcard_exposed_symbols = []
     for view_symbol in view_symbols:
         attributes = view_symbol.get("attributes", {})
@@ -334,6 +654,19 @@ def _view_composition(
     }
     exposed_names = explicit_exposed_names | wildcard_exposed_names
     if not exposed_names:
+        if presentation:
+            view_symbol = view_symbols[0]
+            return {
+                "type": "composition",
+                "title": (
+                    f"{presentation.replace('_', ' ').title()} "
+                    f"[{focus}]"
+                ),
+                "presentation": presentation,
+                "issues": ["the view exposes no resolvable model elements"],
+                "nodes": [],
+                "edges": [],
+            }
         return None
 
     local_exposed_names = {
@@ -357,6 +690,15 @@ def _view_composition(
             exposed_symbols.append(symbol)
             exposed_symbol_keys.add(symbol_key)
     if not exposed_symbols:
+        if presentation:
+            return {
+                "type": "composition",
+                "title": f"{presentation.replace('_', ' ').title()} [{focus}]",
+                "presentation": presentation,
+                "issues": ["the view exposes no resolvable model elements"],
+                "nodes": [],
+                "edges": [],
+            }
         return None
 
     selected_names = set(exposed_names)
@@ -456,40 +798,34 @@ def _view_composition(
         display_attributes["diagramType"] = type_name
         display_symbol["attributes"] = display_attributes
 
-    for symbol in exposed_symbols:
-        type_name = _diagram_type(symbol)
-        if type_name is None:
-            continue
-        definition_matches = [
-            candidate
-            for candidate in symbols
-            if candidate["name"] == type_name
-            and candidate["kind"].lower().endswith(("_def", "_definition"))
-        ]
-        definition = next(
-            (
-                candidate
-                for candidate in definition_matches
-                if candidate["file"] == symbol["file"]
-            ),
-            definition_matches[0] if definition_matches else None,
+    visible_feature_owners = {
+        (
+            visible_symbol.get("container"),
+            visible_symbol.get("name"),
+            visible_symbol.get("kind"),
         )
-        if definition is None:
+        for visible_symbol in visible_symbols
+    }
+    for symbol in exposed_symbols:
+        if symbol.get("kind", "").lower() != "part_usage":
             continue
-        for feature in symbols:
-            if (
-                feature.get("container") != definition["name"]
-                or feature["file"] != definition["file"]
-                or (
-                    filter_kinds is not None
-                    and not _view_kind_is_allowed(
-                        feature["kind"].lower(),
-                        filter_kinds,
-                    )
-                )
-            ):
+        for feature in _projected_part_type_features(
+            symbol,
+            symbols,
+            refs,
+            filter_kinds,
+        ):
+            feature_owner_key = (
+                symbol["name"],
+                feature["name"],
+                feature["kind"],
+            )
+            if feature_owner_key in visible_feature_owners:
                 continue
+            visible_feature_owners.add(feature_owner_key)
             projected_feature = dict(feature)
+            projected_feature["file"] = symbol["file"]
+            projected_feature["range"] = dict(symbol["range"])
             projected_feature["container"] = symbol["name"]
             projected_feature["ancestors"] = [
                 *symbol.get("ancestors", ()),
@@ -514,9 +850,16 @@ def _view_composition(
         for edge in edges
         if edge["source"] in visible_names and edge["target"] in visible_names
     ]
+    title = f"bdd [Package] {next(iter(view_symbols))['container']} [{focus}]"
+    if presentation:
+        title = (
+            f"{presentation.replace('_', ' ').title()} "
+            f"[{focus}]"
+        )
     return {
         "type": "composition",
-        "title": f"bdd [Package] {next(iter(view_symbols))['container']} [{focus}]",
+        "title": title,
+        **({"presentation": presentation} if presentation else {}),
         "nodes": visible_symbols,
         "edges": [*containment_edges, *relationship_edges],
     }
@@ -527,7 +870,7 @@ def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, 
     symbols = all_symbols
     refs = [r for refs in index.references_by_name.values() for r in refs]
 
-    if view_type == "composition" and focus:
+    if focus:
         view_composition = _view_composition(
             all_symbols,
             refs,
@@ -535,7 +878,9 @@ def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, 
             depth,
             getattr(index, "source_texts", {}),
         )
-        if view_composition is not None:
+        if view_composition is not None and (
+            view_type == "composition" or view_composition.get("presentation")
+        ):
             return view_composition
 
     if focus:
@@ -651,7 +996,14 @@ def build_view(index: WorkspaceIndex, view_type: str, focus: str | None = None, 
 
 
 def render_text(view: dict[str, Any]) -> str:
+    if view.get("presentation"):
+        return render_graph_data(view)["graph"]
     lines = [f"View: {view['type']}", ""]
+    issues = view.get("issues", [])
+    for issue in issues:
+        lines.append(f"Note: {issue}")
+    if issues:
+        lines.append("")
     names = {n["name"] for n in view["nodes"]}
     for node in sorted(view["nodes"], key=lambda n: (n["kind"], n["name"])):
         lines.append(f"- {node['name']} [{node['kind']}] ({Path(node['file']).name}:{node['range']['line']})")
@@ -674,6 +1026,120 @@ def render_graph(
 
 
 def render_dot(view: dict[str, Any]) -> str:
+    presentation = view.get("presentation")
+    if isinstance(presentation, str):
+        graph_data = render_graph_data(view)
+        graph_layout = graph_data["layout"]
+        graph_name = f"{presentation}_{view.get('type', 'view')}"
+        lines = [f"digraph {_dot_quote(graph_name)} {{"]
+        if presentation == "sequence":
+            lines.append("  rankdir=LR;")
+        elif presentation in {"browser", "state_transition"}:
+            lines.append("  rankdir=TB;")
+        elif presentation == "geometry":
+            lines.append("  layout=neato;")
+            lines.append("  overlap=false;")
+        else:
+            lines.append("  rankdir=LR;")
+
+        node_ids = {
+            node.get("id"): f"n{index}"
+            for index, node in enumerate(graph_layout.get("nodes", []))
+        }
+        node_ids_by_name = {
+            node.get("name"): node_ids.get(node.get("id"))
+            for node in graph_layout.get("nodes", [])
+        }
+        for node in graph_layout.get("nodes", []):
+            label_lines = [
+                str(node.get("name", "")),
+                str(node.get("kind", "element")).replace("_", " "),
+            ]
+            if node.get("display_type"):
+                label_lines.append(f": {node['display_type']}")
+            feature_labels = [
+                feature.get("label", "")
+                for feature in node.get("features", [])
+                if feature.get("label")
+            ]
+            if feature_labels:
+                label_lines.append("\\n".join(feature_labels))
+            shape = {
+                "interconnection": "box",
+                "action_flow": (
+                    "ellipse"
+                    if "action" in str(node.get("kind", "")).lower()
+                    else "box"
+                ),
+                "state_transition": "box",
+                "sequence": "plaintext",
+                "geometry": "ellipse",
+                "grid": "record",
+                "browser": "plaintext",
+            }.get(presentation, "box")
+            attributes = [
+                f"label={_dot_quote(chr(10).join(label_lines))}",
+                f"shape={_dot_quote(shape)}",
+            ]
+            if presentation == "geometry" and isinstance(
+                node.get("layout_point"), list
+            ):
+                point = node["layout_point"]
+                if len(point) >= 2:
+                    attributes.append(
+                        f"pos={_dot_quote(f'{point[0]},{point[1]}!')}"
+                    )
+            lines.append(
+                f"  {node_ids[node.get('id')]} [{', '.join(attributes)}];"
+            )
+
+        rendered_edge_keys = set()
+        for edge in graph_layout.get("edges", []):
+            source_id = edge.get("source_node_id") or edge.get("source_id")
+            target_id = edge.get("target_node_id") or edge.get("target_id")
+            source = node_ids.get(source_id) or node_ids_by_name.get(edge.get("source"))
+            target = node_ids.get(target_id) or node_ids_by_name.get(edge.get("target"))
+            if not source or not target:
+                continue
+            relation = str(edge.get("label") or edge.get("relation", "related"))
+            source_feature = edge.get("source_feature")
+            target_feature = edge.get("target_feature")
+            if source_feature or target_feature:
+                relation = (
+                    f"{source_feature or ''} -[{relation}]-> "
+                    f"{target_feature or ''}"
+                )
+            key = source, target, relation
+            if key in rendered_edge_keys:
+                continue
+            rendered_edge_keys.add(key)
+            edge_style = (
+                'style="dotted", arrowhead="none"'
+                if edge.get("relation") == "contains"
+                else ""
+            )
+            attributes = [f"label={_dot_quote(relation)}"]
+            if edge_style:
+                attributes.append(edge_style)
+            lines.append(
+                f"  {source} -> {target} [{', '.join(attributes)}];"
+            )
+
+        if presentation == "browser":
+            for node in graph_layout.get("nodes", []):
+                parent = node_ids_by_name.get(node.get("container"))
+                child = node_ids.get(node.get("id"))
+                if parent and child and parent != child:
+                    key = parent, child, "contains"
+                    if key not in rendered_edge_keys:
+                        rendered_edge_keys.add(key)
+                        lines.append(
+                            f'  {parent} -> {child} [label="contains", '
+                            'style="dotted", arrowhead="none"];'
+                        )
+        lines.append("}")
+        return "\n".join(lines)
+
     lines = [f'digraph "{view["type"]}" {{', "  rankdir=LR;"]
     for node in view["nodes"]:
         lines.append(f'  "{node["name"]}" [label="{node["name"]}\\n{node["kind"]}"];')
@@ -683,9 +1149,26 @@ def render_dot(view: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _dot_quote(text: str) -> str:
+    escaped = (
+        text.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\r", "")
+        .replace("\n", "\\n")
+    )
+    return f'"{escaped}"'
+
+
 def render_svg(view: dict[str, Any]) -> str:
     dot = render_dot(view)
-    proc = subprocess.run(["dot", "-Tsvg"], input=dot, text=True, capture_output=True, check=False)
+    engine = "neato" if view.get("presentation") == "geometry" else "dot"
+    proc = subprocess.run(
+        ["dot", f"-K{engine}", "-Tsvg"],
+        input=dot,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or "dot failed")
     return proc.stdout

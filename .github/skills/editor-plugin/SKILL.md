@@ -25,6 +25,9 @@ Inspect the relevant files among `plugin/sysml.vim`, `autoload/sysml.vim`,
 - Preserve clean fallback behavior between persistent RPC and one-shot CLI,
   and keep diagnostics, quickfix, result buffers, and refresh behavior
   consistent with the documented commands.
+- Keep graph-json geometry and presentation metadata aligned with Vim hit
+  testing; hierarchy presentations may use indent folds but must preserve
+  source navigation and graph refresh behavior.
 - Consider both Vim and Neovim. Validate command registration and run the
   relevant Vim smoke tests; update Neovim-specific behavior/tests when touched.
 

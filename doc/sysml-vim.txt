@@ -107,9 +107,29 @@ available. Open views refresh after edits to loaded SysML/KerML buffers in the
 same workspace, including unsaved text sent over the RPC backend.
 :v2 graph without a focus argument shows the whole workspace; provide an
 element name to limit the graph.
-Graph boxes show definition kind/name headers and contained usages in feature
-compartments. Forward relationships route between boxes; backward and cyclic
-relationships use an outer gutter, with relationship labels below the diagram.
+When the focused element is a SysML view usage, its typed view definition
+selects the presentation. Standard definitions supported are GeneralView,
+InterconnectionView, ActionFlowView, StateTransitionView, SequenceView,
+GeometryView, GridView, and BrowserView. Custom view definitions inherit a
+presentation when their `specializes` relationship to a standard definition
+is available in the language-server projection. Use `:V2g bleTraceView` or
+`:v2 view composition bleTraceView`; the view usage's name does not choose the
+presentation.
+
+Interconnection views show parts with their nested features and projected
+connectors. Action-flow views emphasize actions, parameters, and flow
+relationships; state-transition views emphasize states and transitions.
+Sequence views show lifelines and projected events in source order. Geometry
+views plot numeric projected positions in orthographic views; without
+coordinates they show an inventory rather than inferred placement. Grid views
+show a table, and Browser views show a hierarchy that can be folded with
+`zc` / `zo` and opened or closed globally with `zR` / `zM`.
+
+Only the selected model projection is rendered. Sequence order is not
+simulated execution time, and GeometryView is not a full 3D shape renderer.
+Generic graph views continue to show definition kind/name headers and
+contained usages in feature compartments, with orthogonal relationship routes
+and an outer gutter for backward or cyclic relationships.
 
 SysML folds are open by default. Adjust `foldlevel` in your ftplugin if you
 prefer collapsed folds.

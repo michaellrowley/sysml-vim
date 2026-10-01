@@ -191,6 +191,53 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
             )
         ]
         relationships = [relationship("transition", "Fdopfyfvfw", "Kmizbu")]
+    elif filename == "standard_views.sysml":
+        elements = [
+            element(
+                "Example",
+                "package",
+                0,
+                0,
+                7,
+                1,
+                children=[
+                    element(
+                        "bleTraceView",
+                        "view",
+                        1,
+                        2,
+                        1,
+                        53,
+                        attributes={
+                            "partType": "SysML::BrowserView",
+                            "exposeTargets": "Root",
+                        },
+                    ),
+                    element(
+                        "Root",
+                        "part",
+                        2,
+                        2,
+                        6,
+                        3,
+                        children=[
+                            element(
+                                "Child",
+                                "part",
+                                3,
+                                4,
+                                5,
+                                5,
+                                children=[
+                                    element("Leaf", "part", 4, 6, 4, 16),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        ]
+        relationships = []
     elif filename == "requirements.sysml":
         elements = [
             element(
