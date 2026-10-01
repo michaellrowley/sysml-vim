@@ -5,6 +5,7 @@ let s:view_sessions = {}
 let s:view_refresh_timer = -1
 let s:view_refresh_paths = {}
 let s:graph_buffers = {}
+let s:graph_reflow_timer = -1
 let s:graph_mousemove_original = -1
 let s:graph_mousemove_changed = 0
 
@@ -555,7 +556,7 @@ function! s:setup_graph_highlight_groups() abort
   highlight default link SysmlGraphEdgeDependency Special
   highlight default link SysmlGraphEdgeOther Comment
   highlight default link SysmlGraphJunction WarningMsg
-  highlight default link SysmlGraphSelection CursorLine
+  highlight default link SysmlGraphSelection Visual
 endfunction
 
 function! s:graph_node_highlight(kind) abort
@@ -909,6 +910,7 @@ function! s:setup_graph_buffer() abort
   let s:graph_buffers[buffer_key] = 1
   augroup sysml_graph_navigation
     autocmd CursorMoved <buffer> call sysml#graph_mouse_sync()
+    autocmd WinEnter <buffer> call sysml#_graph_window_enter()
     autocmd BufWipeout <buffer> call sysml#_graph_buffer_wiped(str2nr(expand('<abuf>')))
   augroup END
 
@@ -942,6 +944,128 @@ function! sysml#_graph_buffer_wiped(buffer_number) abort
   endif
   let s:graph_mousemove_original = -1
   let s:graph_mousemove_changed = 0
+endfunction
+
+function! s:graph_window_width(buffer_number) abort
+  let width = 0
+  if exists('*getwininfo')
+    for window in getwininfo()
+      if window.bufnr == a:buffer_number
+        let width = width == 0 ? window.width : min([width, window.width])
+      endif
+    endfor
+  endif
+  return width > 0 ? width : winwidth(0)
+endfunction
+
+function! s:reflow_graph_buffer(buffer_number) abort
+  let session_key = string(a:buffer_number)
+  if !has_key(s:view_sessions, session_key)
+        \ || !bufexists(a:buffer_number)
+        \ || getbufvar(a:buffer_number, 'sysml_view_method', '') !=# 'view_graph'
+    return
+  endif
+  let window_ids = win_findbuf(a:buffer_number)
+  if empty(window_ids)
+    return
+  endif
+
+  let session = copy(s:view_sessions[session_key])
+  let width = max([40, s:graph_window_width(a:buffer_number)])
+  if get(session.params, 'width', 0) == width
+    return
+  endif
+  let session.params.width = width
+  let response = s:view_request(session)
+  if !get(response, 'ok', v:false)
+    if get(response, 'has_modified_buffers', v:false)
+      echohl ErrorMsg
+      echom 'sysml graph resize failed; unsaved model text requires a working RPC backend: '
+            \ . get(response, 'error', 'RPC request failed')
+      echohl None
+      return
+    endif
+    let args = [
+          \ 'view', 'composition', '--path', session.path,
+          \ '--format', 'graph-json',
+          \ '--depth', string(get(session.params, 'depth', 5)),
+          \ '--width', string(width)
+          \ ]
+    if !empty(session.focus)
+      call extend(args, ['--focus', session.focus])
+    endif
+    let command_result = s:run_sync(args)
+    let graph_result = s:json_decode_lines(command_result.lines)
+    if (command_result.status != 0 && empty(command_result.lines))
+          \ || !has_key(graph_result, 'graph')
+          \ || !has_key(graph_result, 'layout')
+      echohl ErrorMsg
+      echom 'sysml graph resize failed'
+      echohl None
+      return
+    endif
+    let response = {
+          \ 'ok': v:true,
+          \ 'lines': split(graph_result.graph, "\n"),
+          \ 'layout': graph_result.layout
+          \ }
+  endif
+
+  let selected = getbufvar(a:buffer_number, 'sysml_graph_selection', {})
+  call s:replace_buffer_lines(a:buffer_number, response.lines, response.layout)
+  let session.graph_layout = response.layout
+  let s:view_sessions[session_key] = session
+
+  if get(selected, 'kind', '') ==# 'node'
+    for node in get(response.layout, 'nodes', [])
+      if (!empty(get(selected, 'id', '')) && node.id ==# selected.id)
+            \ || node.name ==# get(selected, 'name', '')
+        let selected.id = node.id
+        let selected.name = node.name
+        call setbufvar(a:buffer_number, 'sysml_graph_selection', selected)
+        if exists('*win_execute')
+          for window_id in window_ids
+            call win_execute(
+                  \ window_id,
+                  \ printf('call cursor(%d, %d)', node.line, node.col)
+                  \ )
+          endfor
+        elseif bufnr('%') == a:buffer_number
+          call cursor(node.line, node.col)
+        endif
+        break
+      endif
+    endfor
+  endif
+endfunction
+
+function! sysml#_graph_window_enter() abort
+  setlocal nowrap sidescroll=1
+  call s:reflow_graph_buffer(bufnr('%'))
+endfunction
+
+function! sysml#_schedule_graph_reflow() abort
+  if exists('*timer_start')
+    if s:graph_reflow_timer >= 0
+      call timer_stop(s:graph_reflow_timer)
+    endif
+    let s:graph_reflow_timer = timer_start(
+          \ 50,
+          \ function('sysml#_graph_reflow_visible')
+          \ )
+  else
+    call sysml#_graph_reflow_visible()
+  endif
+endfunction
+
+function! sysml#_graph_reflow_visible(...) abort
+  let s:graph_reflow_timer = -1
+  for session_key in keys(copy(s:view_sessions))
+    let buffer_number = str2nr(session_key)
+    if get(s:view_sessions[session_key], 'method', '') ==# 'view_graph'
+      call s:reflow_graph_buffer(buffer_number)
+    endif
+  endfor
 endfunction
 
 function! sysml#graph_mouse_sync(...) abort
@@ -1042,11 +1166,10 @@ function! sysml#graph_move(direction) abort
     return
   endif
 
-  let current = {'x': virtcol('.'), 'y': line('.')}
   let current_node = {}
   for node in nodes
-    if current.y >= node.top && current.y <= node.bottom
-          \ && current.x >= node.left && current.x <= node.right
+    if line('.') >= node.top && line('.') <= node.bottom
+          \ && virtcol('.') >= node.left && virtcol('.') <= node.right
       let current_node = node
       break
     endif
@@ -1063,39 +1186,106 @@ function! sysml#graph_move(direction) abort
       endif
     endfor
   endif
-  if !empty(current_node)
-    let current = {
-          \ 'x': current_node.left + (current_node.right - current_node.left) / 2,
-          \ 'y': current_node.line
+  if empty(current_node)
+    let cursor_line = line('.')
+    let cursor_column = virtcol('.')
+    let current_node = {
+          \ 'id': '',
+          \ 'top': cursor_line,
+          \ 'bottom': cursor_line,
+          \ 'left': cursor_column,
+          \ 'right': cursor_column
           \ }
   endif
 
   let target = {}
-  let best_score = -1
-  " Stay in the requested half-plane and prefer candidates aligned with that axis.
-  for node in nodes
-    let x_delta = node.left + (node.right - node.left) / 2 - current.x
-    let y_delta = node.line - current.y
-    if a:direction ==# 'left' && x_delta >= 0
-          \ || a:direction ==# 'right' && x_delta <= 0
-          \ || a:direction ==# 'up' && y_delta >= 0
-          \ || a:direction ==# 'down' && y_delta <= 0
-      continue
-    endif
+  let horizontal = a:direction ==# 'left' || a:direction ==# 'right'
+  let center = horizontal
+        \ ? current_node.top + (current_node.bottom - current_node.top) / 2
+        \ : current_node.left + (current_node.right - current_node.left) / 2
+  let ray_extent = horizontal
+        \ ? current_node.bottom - current_node.top
+        \ : current_node.right - current_node.left
+  let ray_offsets = [0]
+  for offset in range(1, ray_extent)
+    call add(ray_offsets, -offset)
+    call add(ray_offsets, offset)
+  endfor
 
-    if a:direction ==# 'left' || a:direction ==# 'right'
-      let primary = abs(x_delta)
-      let secondary = abs(y_delta)
-    else
-      let primary = abs(y_delta)
-      let secondary = abs(x_delta)
-    endif
-    let score = primary * primary + 3 * secondary * secondary
-    if best_score < 0 || score < best_score
-      let best_score = score
-      let target = node
+  " Cast axis-aligned rays from the node's center, then from each row/column.
+  for offset in ray_offsets
+    let ray = center + offset
+    let ray_target = {}
+    let ray_distance = -1
+    for node in nodes
+      if node.id ==# current_node.id
+        continue
+      endif
+      if horizontal
+        if (a:direction ==# 'right' && node.left <= current_node.right)
+              \ || (a:direction ==# 'left' && node.right >= current_node.left)
+              \ || ray < node.top || ray > node.bottom
+          continue
+        endif
+        let distance = a:direction ==# 'right'
+              \ ? node.left - current_node.right
+              \ : current_node.left - node.right
+      else
+        if (a:direction ==# 'down' && node.top <= current_node.bottom)
+              \ || (a:direction ==# 'up' && node.bottom >= current_node.top)
+              \ || ray < node.left || ray > node.right
+          continue
+        endif
+        let distance = a:direction ==# 'down'
+              \ ? node.top - current_node.bottom
+              \ : current_node.top - node.bottom
+      endif
+      if ray_distance < 0 || distance < ray_distance
+        let ray_distance = distance
+        let ray_target = node
+      endif
+    endfor
+    if !empty(ray_target)
+      let target = ray_target
+      break
     endif
   endfor
+
+  if empty(target)
+    let best_primary = -1
+    let best_secondary = -1
+    for node in nodes
+      if node.id ==# current_node.id
+        continue
+      endif
+      let x_gap = max([
+            \ 0,
+            \ node.left - current_node.right - 1,
+            \ current_node.left - node.right - 1
+            \ ])
+      let y_gap = max([
+            \ 0,
+            \ node.top - current_node.bottom - 1,
+            \ current_node.top - node.bottom - 1
+            \ ])
+      if (a:direction ==# 'left' && node.right >= current_node.left)
+            \ || (a:direction ==# 'right' && node.left <= current_node.right)
+            \ || (a:direction ==# 'up' && node.bottom >= current_node.top)
+            \ || (a:direction ==# 'down' && node.top <= current_node.bottom)
+        continue
+      endif
+      let primary = a:direction ==# 'left' || a:direction ==# 'right'
+            \ ? x_gap : y_gap
+      let secondary = a:direction ==# 'left' || a:direction ==# 'right'
+            \ ? y_gap : x_gap
+      if best_primary < 0 || primary < best_primary
+            \ || (primary == best_primary && secondary < best_secondary)
+        let best_primary = primary
+        let best_secondary = secondary
+        let target = node
+      endif
+    endfor
+  endif
 
   if !empty(target)
     let b:sysml_graph_selection = {

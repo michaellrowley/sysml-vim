@@ -90,6 +90,16 @@ augroup sysml_view_sync
   autocmd TextChanged,TextChangedI,BufWritePost *.sysml,*.kerml call sysml#_schedule_view_refresh(bufnr('%'))
 augroup END
 
+augroup sysml_graph_resize
+  autocmd!
+  if exists('##WinResized')
+    autocmd WinResized * call sysml#_schedule_graph_reflow()
+  endif
+  if exists('##WinClosed')
+    autocmd WinClosed * call sysml#_schedule_graph_reflow()
+  endif
+augroup END
+
 nnoremap <silent> <Plug>(sysml-definition) :V2 definition<CR>
 nnoremap <silent> <Plug>(sysml-references) :V2 references<CR>
 nnoremap <silent> <Plug>(sysml-hover) :V2 hover<CR>
