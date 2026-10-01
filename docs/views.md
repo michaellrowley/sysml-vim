@@ -75,7 +75,8 @@ Vim command:
   Graph layouts reflow to the narrowest window displaying them after splits or
   resizes. Every graph window disables Vim's line wrapping to preserve box
   alignment; use horizontal scrolling (`zh` / `zl`) for any remaining overflow.
-  Relationship labels are listed below the diagram. When `focus` names a
+  Relationship labels are listed below the diagram; interconnection labels are
+  also drawn on their routes when space permits. When `focus` names a
   SysML view usage, the graph renders its exposed elements and their available
   typing/connection relationships, restricted by the associated view
   definition's `viewFilters`, instead of showing the view usage as a standalone
@@ -95,8 +96,8 @@ Use `]n` / `[n` to move through nodes in layout order and `]e` / `[e` to move
 through edges. With mouse support enabled (`mouse=a`), hovering over a node or
 rendered edge selects it in Neovim; in Vim, click to select because Vim does
 not report pointer-hover events. Selection highlighting is limited to the
-selected node's box or the selected edge's entry, rather than extending across
-the full screen.
+selected node's box or the selected edge's route and entry, rather than
+extending across the full screen.
 
 Node boxes are colored by element family. Edge paths use one consistent color,
 while edge entries use relationship-family colors; only actual crossing

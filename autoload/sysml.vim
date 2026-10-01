@@ -845,6 +845,11 @@ function! s:graph_highlight_selection() abort
             \ && edge.relation ==# get(selection, 'relation', '')
             \ && edge.target ==# get(selection, 'target', '')
         call add(positions, [edge.line, 1, strlen(getline(edge.line))])
+        let route_cells = {}
+        for cell in s:graph_route_cells(edge)
+          call s:graph_add_cell(route_cells, cell[0], cell[1])
+        endfor
+        call extend(positions, s:graph_cell_positions(route_cells))
         break
       endif
     endfor

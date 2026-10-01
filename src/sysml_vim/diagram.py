@@ -120,6 +120,7 @@ class DiagramEdge:
     target_feature: str | None = None
     label: str | None = None
     flow_item: str | None = None
+    route_label: str | None = None
     route: list[tuple[int, int, str]] = field(default_factory=list)
 
 
@@ -631,6 +632,13 @@ def _build_diagram_edges(
                     break
             if flow_item is None and isinstance(edge.get("label"), str):
                 flow_item = edge["label"]
+        route_label = None
+        if presentation == "interconnection" and relation.lower() != "contains":
+            if relation.lower() in {"flow", "flow_connection", "item_flow"}:
+                flow_name = str(flow_item or edge.get("label") or relation)
+                route_label = f"◆ {flow_name.split(':', 1)[0].strip()}"
+            else:
+                route_label = str(edge.get("label") or relation)
         node_by_id = {node.id: node for node in nodes}
         source_display = node_by_id[source_node].name
         if source_feature:
@@ -650,6 +658,7 @@ def _build_diagram_edges(
                 target_feature=target_feature,
                 label=edge.get("label"),
                 flow_item=flow_item,
+                route_label=route_label,
             )
         )
     return diagram_edges
@@ -814,22 +823,49 @@ def _position_nodes(
         for rank, layer in layers.items()
     }
     edge_counts: dict[tuple[int, int], int] = defaultdict(int)
+    route_label_widths: dict[tuple[int, int], list[int]] = defaultdict(list)
     for edge in edges:
         source_rank = node_by_id[edge.source].rank
         target_rank = node_by_id[edge.target].rank
         if target_rank == source_rank + 1:
             edge_counts[(source_rank, target_rank)] += 1
+            if edge.route_label:
+                route_label_widths[(source_rank, target_rank)].append(
+                    _display_width(edge.route_label)
+                )
 
     x_positions: dict[int, int] = {}
     x = 2
     if layers:
         max_rank = max(layers)
+        base_gaps = {}
+        annotated_gaps = {}
+        for rank in range(max_rank):
+            count = edge_counts.get((rank, rank + 1), 0)
+            base_gap = (
+                max(8, count + 5)
+                if max_width is None
+                else count + 2
+            )
+            base_gaps[rank] = base_gap
+            label_widths = route_label_widths.get((rank, rank + 1), [])
+            annotated_gaps[rank] = max(
+                base_gap,
+                sum(label_widths) + count + 1 if label_widths else base_gap,
+            )
+        if max_width is not None:
+            required_width = (
+                4
+                + sum(rank_width.get(rank, 0) for rank in range(max_rank + 1))
+                + sum(annotated_gaps.values())
+            )
+            if required_width > max_width:
+                annotated_gaps = base_gaps
         for rank in range(max_rank + 1):
             x_positions[rank] = x
             x += rank_width.get(rank, 0)
             if rank < max_rank:
-                count = edge_counts.get((rank, rank + 1), 0)
-                x += max(8, count + 5) if max_width is None else count + 2
+                x += annotated_gaps[rank]
 
     for rank in sorted(layers):
         y = 0
@@ -1091,6 +1127,63 @@ def _mark_flow_routes(edges: list[DiagramEdge]) -> None:
             (x, y, "◆" if (x, y) == (marker_column, row) else glyph)
             for x, y, glyph in edge.route
         ]
+
+
+def _route_annotation_positions(
+    edges: list[DiagramEdge],
+) -> dict[str, tuple[int, int, str]]:
+    route_cells_by_id = {
+        edge.id: {(x, y) for x, y, _ in edge.route}
+        for edge in edges
+    }
+    all_route_cells = set().union(*route_cells_by_id.values())
+    occupied: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    annotations = {}
+    for edge in edges:
+        label = edge.route_label
+        if not label:
+            continue
+        label_width = _display_width(label)
+        horizontal_by_row: dict[int, list[int]] = defaultdict(list)
+        for x, y, glyph in edge.route:
+            if {"E", "W"} & _GLYPH_ROUTES.get(glyph, frozenset()):
+                horizontal_by_row[y].append(x)
+
+        runs = []
+        for row, columns in horizontal_by_row.items():
+            run_start = None
+            previous_column = None
+            for column in sorted(set(columns)):
+                if run_start is None or column > previous_column + 1:
+                    if run_start is not None:
+                        runs.append((row, run_start, previous_column))
+                    run_start = column
+                previous_column = column
+            if run_start is not None:
+                runs.append((row, run_start, previous_column))
+        runs.sort(key=lambda run: run[2] - run[1], reverse=True)
+
+        other_routes = all_route_cells - route_cells_by_id[edge.id]
+        for row, run_start, run_end in runs:
+            if run_end - run_start + 1 < label_width:
+                continue
+            center_start = run_start + (run_end - run_start + 1 - label_width) // 2
+            starts = range(run_start, run_end - label_width + 2)
+            for start in sorted(starts, key=lambda column: abs(column - center_start)):
+                end = start + label_width - 1
+                if any((column, row) in other_routes for column in range(start, end + 1)):
+                    continue
+                if any(
+                    start <= occupied_end and end >= occupied_start
+                    for occupied_start, occupied_end in occupied[row]
+                ):
+                    continue
+                annotations[edge.id] = (start, row, label)
+                occupied[row].append((start, end))
+                break
+            if edge.id in annotations:
+                break
+    return annotations
 
 
 def _diagram_edge_label(edge: DiagramEdge) -> str:
@@ -2339,10 +2432,21 @@ def render_graph_data(
             (x, y, glyph_map.get(character, character))
             for x, y, character in edge.route
         ]
-    _mark_flow_routes(layout.edges)
+    route_annotations = _route_annotation_positions(layout.edges)
+    _mark_flow_routes(
+        [
+            edge
+            for edge in layout.edges
+            if edge.id not in route_annotations
+            and edge.relation.lower()
+            in {"flow", "flow_connection", "item_flow"}
+        ]
+    )
     for edge in layout.edges:
         for x, y, character in edge.route:
             _put_route(canvas, x, y, character)
+    for x, y, label in route_annotations.values():
+        _canvas_text(canvas, x, y, label)
 
     node_metadata = _draw_nodes(canvas, layout.nodes, canvas_start_line)
     canvas_lines = ["".join(row).rstrip() for row in canvas]
@@ -2409,6 +2513,7 @@ def render_graph_data(
                     "relation": edge.relation,
                     "label": edge.label,
                     "flow_item": edge.flow_item,
+                    "annotation": edge.route_label,
                     "line": edge_entry_line,
                     "col": _byte_column(summary, 3),
                     "source_line": canvas_start_line + source_row,

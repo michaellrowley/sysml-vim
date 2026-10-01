@@ -77,8 +77,9 @@ Default mappings (if free):
   K   -> hover
 
 In :v2 graph buffers, ]n / [n move to the next / previous node and
-]e / [e move to the next / previous edge. These defaults respect existing
-mappings and can be remapped through the corresponding <Plug> mappings.
+]e / [e move to the next / previous edge and highlight its route and edge
+entry. These defaults respect existing mappings and can be remapped through
+the corresponding <Plug> mappings.
 Arrow keys trace outward from the selected box and move to the first node hit
 in that direction. If no ray intersects a node, they move to the nearest node
 in that half-plane. With mouse support enabled ('mouse'), hovering over a node
@@ -117,7 +118,9 @@ is available in the language-server projection. Use `:V2g bleTraceView` or
 presentation.
 
 Interconnection views show parts with their nested features and projected
-connectors. Action-flow views emphasize actions, parameters, and flow
+connectors; port dots mark connection endpoints, and connector/item-flow
+labels appear on routes when there is room. Action-flow views emphasize
+actions, parameters, and flow
 relationships; state-transition views emphasize states and transitions.
 Sequence views show lifelines and projected events in source order. Geometry
 views plot numeric projected positions in orthographic views; without

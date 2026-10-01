@@ -42,6 +42,8 @@ relevant projection/rendering code in `render.py` or `diagram.py`.
 - Structural graph output is also consumed by editor navigation and highlighting.
   Preserve stable node/edge identity and valid geometry when changing its
   structured output; account for terminal display width when laying out text.
+  Route annotations must remain inside their edge geometry, and route hit cells
+  must support highlighting the selected edge path as well as its entry.
 
 ## Tests
 

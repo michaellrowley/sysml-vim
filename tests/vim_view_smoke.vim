@@ -193,6 +193,25 @@ endfor
 if !s:edge_route_selected
   cquit 23
 endif
+let s:edge_route_highlighted = 0
+for s:match in getmatches()
+  if s:match.group !=# 'SysmlGraphSelection'
+    continue
+  endif
+  for s:match_index in range(1, 8)
+    let s:position = get(s:match, 'pos' . s:match_index, [])
+    if !empty(s:position) && s:position[0] < s:edge_header_line
+      let s:edge_route_highlighted = 1
+      break
+    endif
+  endfor
+  if s:edge_route_highlighted
+    break
+  endif
+endfor
+if !s:edge_route_highlighted
+  cquit 41
+endif
 call cursor(1, 1)
 normal ]n
 let s:node_before_arrow = [line('.'), col('.')]

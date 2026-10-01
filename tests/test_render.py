@@ -748,6 +748,10 @@ def test_interconnection_view_uses_parts_ports_and_interface_edges():
         for edge in rendered["layout"]["edges"]
         if edge["relation"] == "connect"
     )
+    assert connection["annotation"] == "ifConnect"
+    assert "ifConnect" in "\n".join(
+        graph_lines[: rendered["layout"]["edge_header_line"] - 1]
+    )
     assert connection["source_line"] == ports["outlet"]["line"]
     assert connection["target_line"] == ports["inlet"]["line"]
     assert [
@@ -809,17 +813,51 @@ def test_interconnection_view_marks_projected_item_flows_on_edges():
         if edge["relation"] == "item_flow"
     )
     assert flow_edge["flow_item"] == "payloadIn : Payload"
+    assert flow_edge["annotation"] == "◆ payloadIn"
     assert "◆" in rendered["graph"]
     assert (
         "- Alpha.payloadOut -[item_flow: payloadIn : Payload]-> "
         "Beta.payloadIn"
     ) in rendered["graph"]
     graph_lines = rendered["graph"].splitlines()
+    graph_diagram = "\n".join(
+        graph_lines[: rendered["layout"]["edge_header_line"] - 1]
+    )
+    assert flow_edge["annotation"] in graph_diagram
+    annotation_line = next(
+        line_number
+        for line_number, line in enumerate(graph_lines, 1)
+        if flow_edge["annotation"] in line
+    )
+    annotation_column = (
+        graph_lines[annotation_line - 1].index(flow_edge["annotation"]) + 1
+    )
+    assert all(
+        [annotation_line, annotation_column + offset] in flow_edge["route_cells"]
+        for offset in range(_display_width(flow_edge["annotation"]))
+    )
     assert any(
         graph_lines[line - 1][column - 1] == "◆"
         for line, column in flow_edge["route_cells"]
     )
     assert "item_flow: payloadIn : Payload" in render_dot(view)
+
+    narrow = render_graph_data(
+        view,
+        focus="bleTraceView",
+        depth=5,
+        max_width=80,
+    )
+    assert narrow["layout"]["width"] <= 80
+    narrow_edge = next(
+        edge
+        for edge in narrow["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    )
+    narrow_lines = narrow["graph"].splitlines()
+    assert narrow_edge["annotation"] in "\n".join(
+        narrow_lines[: narrow["layout"]["edge_header_line"] - 1]
+    )
 
 
 def test_interconnection_view_resolves_ports_through_part_usage_types():
