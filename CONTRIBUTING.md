@@ -19,3 +19,10 @@ SYSML_LSP_SERVER="$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dis
 
 Do not claim full SysML/KerML conformance unless proven by grammar-derived tests.
 Keep official-tooling integration behind explicit adapters and clear capability flags.
+
+## Coding-agent guidance
+
+Read the repository's `AGENTS.md` and the relevant focused guide under
+`.github/skills/` before making changes. Keep affected skills current when
+verified behavior or an agent mistake reveals a durable change to project
+guidance; see [the skill maintenance guide](docs/agent-skills.md).
