@@ -19,18 +19,18 @@ if !empty(filter(getqflist(), 'v:val.valid && v:val.type ==# "E"'))
   cquit 2
 endif
 
-call feedkeys(":v2g Vehicle\<CR>", 'xt')
+call feedkeys(":v2g Ygkahzr\<CR>", 'xt')
 if bufname('%') !~# '^sysml-graph-'
   cquit 3
 endif
 if tabpagenr('$') != 2 || winnr('$') != 1
   cquit 6
 endif
-if join(getline(1, '$'), "\n") !~# 'Vehicle'
+if join(getline(1, '$'), "\n") !~# 'Ygkahzr'
   cquit 4
 endif
 
-call feedkeys(":v2 graph Vehicle\<CR>", 'xt')
+call feedkeys(":v2 graph Ygkahzr\<CR>", 'xt')
 if bufname('%') !~# '^sysml-graph-'
   cquit 5
 endif

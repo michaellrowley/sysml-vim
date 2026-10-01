@@ -20,15 +20,15 @@ def test_published_lsp_parses_models_and_reports_syntax_errors(tmp_path, monkeyp
     monkeypatch.delenv("SYSML_LSP_COMMAND", raising=False)
     package_file = tmp_path / "powertrain.sysml"
     package_file.write_text(
-        """package Powertrain {
-  part def Engine;
-  part def Vehicle {
-    part engine: Engine;
-    attribute mass: Real;
+        """package Boyhhrbqyz {
+  part def Tegyxc;
+  part def Ygkahzr {
+    part hxipof: Tegyxc;
+    attribute lmqw: Real;
   }
-  requirement def SafeOperation;
-  part def SafetyCase {
-    satisfy requirement SafeOperation by self;
+  requirement def Xbomsupddvpmf;
+  part def Nwfuxqjbpo {
+    satisfy requirement Xbomsupddvpmf by self;
   }
 }
 """,
@@ -36,10 +36,10 @@ def test_published_lsp_parses_models_and_reports_syntax_errors(tmp_path, monkeyp
     )
     importing_file = tmp_path / "fleet.sysml"
     importing_file.write_text(
-        """package FleetModel {
-  private import Powertrain::Vehicle;
-  part def Fleet {
-    part lead: Vehicle;
+        """package Awshovsqoe {
+  private import Boyhhrbqyz::Ygkahzr;
+  part def Pxish {
+    part hcgg: Ygkahzr;
   }
 }
 """,
@@ -47,7 +47,7 @@ def test_published_lsp_parses_models_and_reports_syntax_errors(tmp_path, monkeyp
     )
     malformed_file = tmp_path / "broken.sysml"
     malformed_file.write_text(
-        "package Broken {\n  part def Incomplete {\n",
+        "package Umgluz {\n  part def Syuceouopq {\n",
         encoding="utf-8",
     )
 
@@ -57,11 +57,11 @@ def test_published_lsp_parses_models_and_reports_syntax_errors(tmp_path, monkeyp
         index.refresh()
 
         symbols_by_name = {symbol["name"]: symbol for symbol in index.symbols()}
-        assert symbols_by_name["Engine"]["kind"] == "part_def"
-        assert symbols_by_name["Vehicle"]["kind"] == "part_def"
-        assert symbols_by_name["engine"]["kind"] == "part_usage"
-        assert symbols_by_name["mass"]["kind"] == "attribute_usage"
-        assert symbols_by_name["SafetyCase"]["kind"] == "part_def"
+        assert symbols_by_name["Tegyxc"]["kind"] == "part_def"
+        assert symbols_by_name["Ygkahzr"]["kind"] == "part_def"
+        assert symbols_by_name["hxipof"]["kind"] == "part_usage"
+        assert symbols_by_name["lmqw"]["kind"] == "attribute_usage"
+        assert symbols_by_name["Nwfuxqjbpo"]["kind"] == "part_def"
         error_files = {
             Path(diagnostic["file"]).name
             for diagnostic in index.diagnostics()
@@ -70,33 +70,33 @@ def test_published_lsp_parses_models_and_reports_syntax_errors(tmp_path, monkeyp
         assert error_files == {"broken.sysml"}
         assert any(
             reference["relation"] == "typed_by"
-            for reference in index.references("Vehicle")
+            for reference in index.references("Ygkahzr")
         )
         assert index.parser_info["name"] == "SysML v2 Language Server (ANTLR)"
         assert index.parser_info["version"] != "unknown"
 
         unsaved_text = package_file.read_text(encoding="utf-8").replace(
-            "  requirement def SafeOperation;",
-            "  part def DraftVehicle;\n  requirement def SafeOperation;",
+            "  requirement def Xbomsupddvpmf;",
+            "  part def Lpirvregvvlo;\n  requirement def Xbomsupddvpmf;",
         )
         document_overrides = {str(package_file.resolve()): unsaved_text}
         index.refresh(document_overrides)
-        assert index.definition("DraftVehicle")["kind"] == "part_def"
-        assert "DraftVehicle" not in package_file.read_text(encoding="utf-8")
+        assert index.definition("Lpirvregvvlo")["kind"] == "part_def"
+        assert "Lpirvregvvlo" not in package_file.read_text(encoding="utf-8")
         assert index.is_current(document_overrides) is True
         assert index.is_current() is False
         index.refresh()
-        assert index.definition("DraftVehicle") is None
+        assert index.definition("Lpirvregvvlo") is None
 
         package_file.write_text(
             package_file.read_text(encoding="utf-8").replace(
-                "attribute mass: Real;",
-                "attribute mass: Real;\n    attribute ratedPower: Real;",
+                "attribute lmqw: Real;",
+                "attribute lmqw: Real;\n    attribute gbskygodlk: Real;",
             ),
             encoding="utf-8",
         )
         assert index.is_current() is False
         index.refresh()
-        assert index.definition("ratedPower")["kind"] == "attribute_usage"
+        assert index.definition("gbskygodlk")["kind"] == "attribute_usage"
     finally:
         adapter.close()

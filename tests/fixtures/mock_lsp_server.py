@@ -53,7 +53,7 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
     if filename == "vehicle.sysml":
         elements = [
             element(
-                "VehiclePkg",
+                "Hklqswumzd",
                 "package",
                 0,
                 0,
@@ -61,7 +61,7 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
                 1,
                 children=[
                     element(
-                        "Engine",
+                        "Tegyxc",
                         "part def",
                         1,
                         2,
@@ -69,18 +69,18 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
                         3,
                         children=[
                             element(
-                                "fuelIn",
+                                "vebfom",
                                 "port",
                                 2,
                                 4,
                                 2,
                                 26,
-                                relationships=[relationship("typing", "fuelIn", "FuelPort")],
+                                relationships=[relationship("typing", "vebfom", "Gkgsiimz")],
                             )
                         ],
                     ),
                     element(
-                        "Vehicle",
+                        "Ygkahzr",
                         "part def",
                         5,
                         2,
@@ -88,39 +88,39 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
                         3,
                         children=[
                             element(
-                                "engine",
+                                "hxipof",
                                 "part",
                                 6,
                                 4,
                                 6,
                                 24,
-                                relationships=[relationship("typing", "engine", "Engine")],
+                                relationships=[relationship("typing", "hxipof", "Tegyxc")],
                             ),
                             element(
-                                "wheel",
+                                "fpzwr",
                                 "part",
                                 7,
                                 4,
                                 7,
                                 22,
-                                relationships=[relationship("typing", "wheel", "Wheel")],
+                                relationships=[relationship("typing", "fpzwr", "Moech")],
                             ),
                         ],
                     ),
-                    element("FuelPort", "port def", 10, 2, 10, 21),
-                    element("Wheel", "part def", 11, 2, 11, 20),
+                    element("Gkgsiimz", "port def", 10, 2, 10, 21),
+                    element("Moech", "part def", 11, 2, 11, 20),
                 ],
             )
         ]
         relationships = [
-            relationship("typing", "fuelIn", "FuelPort"),
-            relationship("typing", "engine", "Engine"),
-            relationship("typing", "wheel", "Wheel"),
+            relationship("typing", "vebfom", "Gkgsiimz"),
+            relationship("typing", "hxipof", "Tegyxc"),
+            relationship("typing", "fpzwr", "Moech"),
         ]
     elif filename == "links.sysml":
         elements = [
             element(
-                "LinkPkg",
+                "Wjhfgql",
                 "package",
                 0,
                 0,
@@ -128,16 +128,16 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
                 1,
                 children=[
                     element(
-                        "Vehicle",
+                        "Ygkahzr",
                         "import",
                         1,
                         2,
                         1,
                         38,
-                        attributes={"qualifiedName": "VehiclePkg::Vehicle"},
+                        attributes={"qualifiedName": "Hklqswumzd::Ygkahzr"},
                     ),
                     element(
-                        "Fleet",
+                        "Pxish",
                         "part def",
                         3,
                         2,
@@ -145,29 +145,29 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
                         3,
                         children=[
                             element(
-                                "lead",
+                                "hcgg",
                                 "part",
                                 4,
                                 4,
                                 4,
                                 23,
-                                relationships=[relationship("typing", "lead", "Vehicle")],
+                                relationships=[relationship("typing", "hcgg", "Ygkahzr")],
                             ),
-                            element("Vehicle", "allocation", 5, 4, 5, 29),
-                            element("Vehicle", "dependency", 6, 4, 6, 37),
+                            element("Ygkahzr", "allocation", 5, 4, 5, 29),
+                            element("Ygkahzr", "dependency", 6, 4, 6, 37),
                         ],
                     ),
                 ],
             )
         ]
         relationships = [
-            relationship("typing", "lead", "Vehicle"),
-            relationship("dependency", "Fleet", "Vehicle"),
+            relationship("typing", "hcgg", "Ygkahzr"),
+            relationship("dependency", "Pxish", "Ygkahzr"),
         ]
     elif filename == "behavior.sysml":
         elements = [
             element(
-                "BehaviorPkg",
+                "Lturzrgrewi",
                 "package",
                 0,
                 0,
@@ -175,35 +175,35 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
                 1,
                 children=[
                     element(
-                        "Controller",
+                        "Fdopfyfvfw",
                         "part def",
                         1,
                         2,
                         4,
                         3,
                         children=[
-                            element("Idle", "state def", 2, 4, 2, 19),
-                            element("Active", "state def", 3, 4, 3, 21),
+                            element("Vter", "state def", 2, 4, 2, 19),
+                            element("Kmizbu", "state def", 3, 4, 3, 21),
                         ],
                     ),
-                    element("Start", "action def", 7, 2, 7, 19),
+                    element("Thhat", "action def", 7, 2, 7, 19),
                 ],
             )
         ]
-        relationships = [relationship("transition", "Controller", "Active")]
+        relationships = [relationship("transition", "Fdopfyfvfw", "Kmizbu")]
     elif filename == "requirements.sysml":
         elements = [
             element(
-                "ReqPkg",
+                "Mbugwy",
                 "package",
                 0,
                 0,
                 8,
                 1,
                 children=[
-                    element("R1", "requirement def", 1, 2, 1, 21),
+                    element("Sr", "requirement def", 1, 2, 1, 21),
                     element(
-                        "VerificationRig",
+                        "Ewperodqqkkojjr",
                         "part def",
                         2,
                         2,
@@ -214,12 +214,12 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
             )
         ]
         relationships = [
-            relationship("satisfy", "VerificationRig", "R1"),
+            relationship("satisfy", "Ewperodqqkkojjr", "Sr"),
         ]
     elif filename == "bad.sysml":
         elements = [
             element(
-                "Broken",
+                "Umgluz",
                 "package",
                 0,
                 0,
@@ -227,7 +227,7 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
                 24,
                 children=[
                     element(
-                        "Bad",
+                        "Hka",
                         "part def",
                         1,
                         2,
@@ -235,20 +235,20 @@ def model_for(path: Path, version: int, source_text: str = "") -> dict[str, Any]
                         24,
                         children=[
                             element(
-                                "x",
+                                "k",
                                 "part",
                                 2,
                                 4,
                                 2,
                                 24,
-                                relationships=[relationship("typing", "x", "MissingType")],
+                                relationships=[relationship("typing", "k", "Gzoyuduynsp")],
                             )
                         ],
                     )
                 ],
             )
         ]
-        relationships = [relationship("typing", "x", "MissingType")]
+        relationships = [relationship("typing", "k", "Gzoyuduynsp")]
     else:
         elements = []
         relationships = []
@@ -383,18 +383,18 @@ def diagnostics_for(path: Path, source_text: str = "") -> list[dict[str, Any]]:
 
 def references_for(target_name: str) -> list[dict[str, Any]]:
     reference_locations = {
-        "Vehicle": [
+        "Ygkahzr": [
             ("links.sysml", 1, 30, 7),
             ("links.sysml", 4, 15, 7),
             ("links.sysml", 5, 21, 7),
             ("links.sysml", 6, 29, 7),
         ],
-        "Engine": [("vehicle.sysml", 6, 17, 6)],
-        "Wheel": [("vehicle.sysml", 7, 16, 5)],
-        "FuelPort": [("vehicle.sysml", 2, 17, 8)],
-        "R1": [("requirements.sysml", 3, 24, 2)],
-        "Active": [],
-        "MissingType": [("bad.sysml", 2, 12, 10)],
+        "Tegyxc": [("vehicle.sysml", 6, 17, 6)],
+        "Moech": [("vehicle.sysml", 7, 16, 5)],
+        "Gkgsiimz": [("vehicle.sysml", 2, 17, 8)],
+        "Sr": [("requirements.sysml", 3, 24, 2)],
+        "Kmizbu": [],
+        "Gzoyuduynsp": [("bad.sysml", 2, 12, 10)],
     }
     result = []
     for filename, line, column, token_length in reference_locations.get(target_name, []):

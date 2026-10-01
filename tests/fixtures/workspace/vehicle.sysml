@@ -1,13 +1,13 @@
-package VehiclePkg {
-  part def Engine {
-    port fuelIn: FuelPort;
+package Hklqswumzd {
+  part def Tegyxc {
+    port vebfom: Gkgsiimz;
   }
 
-  part def Vehicle {
-    part engine: Engine;
-    part wheel: Wheel;
+  part def Ygkahzr {
+    part hxipof: Tegyxc;
+    part fpzwr: Moech;
   }
 
-  port def FuelPort;
-  part def Wheel;
+  port def Gkgsiimz;
+  part def Moech;
 }

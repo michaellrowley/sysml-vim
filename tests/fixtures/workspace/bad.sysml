@@ -1,3 +1,3 @@
-package Broken {
-  part def Bad {
-    part x: MissingType;
+package Umgluz {
+  part def Hka {
+    part k: Gzoyuduynsp;

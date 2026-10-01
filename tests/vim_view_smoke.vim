@@ -23,13 +23,13 @@ if &l:foldlevel != 99 || foldclosed(2) != -1
 endif
 
 let s:source_buffer = bufnr('%')
-call append(line('$') - 1, '  part def DraftOnly;')
+call append(line('$') - 1, '  part def Efvkuinaq;')
 call feedkeys(":v2t\<CR>", 'xt')
 let s:tree_buffer = bufnr('%')
 if bufname('%') !~# '^sysml-tree-' || winnr('$') != 1
   cquit 2
 endif
-if join(getline(1, '$'), "\n") !~# 'DraftOnly'
+if join(getline(1, '$'), "\n") !~# 'Efvkuinaq'
   cquit 3
 endif
 if tabpagenr('$') != 2
@@ -40,18 +40,18 @@ tabprevious
 if bufnr('%') != s:source_buffer
   cquit 5
 endif
-call append(line('$') - 1, '  part def LiveUpdate;')
+call append(line('$') - 1, '  part def Jexyizmwav;')
 doautocmd TextChanged
 sleep 500m
-if join(getbufline(s:tree_buffer, 1, '$'), "\n") !~# 'LiveUpdate'
+if join(getbufline(s:tree_buffer, 1, '$'), "\n") !~# 'Jexyizmwav'
   cquit 6
 endif
 
-call sysml#graph('DraftOnly')
+call sysml#graph('Efvkuinaq')
 if bufname('%') !~# '^sysml-graph-' || winnr('$') != 1
   cquit 7
 endif
-if join(getline(1, '$'), "\n") !~# 'DraftOnly'
+if join(getline(1, '$'), "\n") !~# 'Efvkuinaq'
   cquit 8
 endif
 
@@ -60,7 +60,7 @@ call cursor(1, 1)
 call sysml#graph()
 let s:graph_buffer = bufnr('%')
 let s:edge_header_line = search('^Edges:$', 'n')
-if join(getline(1, '$'), "\n") !~# 'Vehicle'
+if join(getline(1, '$'), "\n") !~# 'Ygkahzr'
   cquit 11
 endif
 let s:selection_match_id = get(w:, 'sysml_graph_selection_match', -1)
@@ -338,7 +338,7 @@ call writefile(
 execute 'tabnew ' . fnameescape(s:second_source_file)
 execute 'lcd ' . fnameescape(s:workspace_b)
 let s:second_source_buffer = bufnr('%')
-call append(line('$') - 1, '  part def DraftFromWorkspaceB;')
+call append(line('$') - 1, '  part def Geeijvofaotfdsedtaf;')
 call sysml#tree()
 let s:second_tree_buffer = bufnr('%')
 if bufname('%') !=# 'sysml-tree-' . s:second_source_buffer || winnr('$') != 1
@@ -349,25 +349,25 @@ if tabpagenr('$') != 5
 endif
 
 call win_gotoid(win_findbuf(s:source_buffer)[0])
-call append(line('$') - 1, '  part def UpdateFromWorkspaceA;')
+call append(line('$') - 1, '  part def Bontuuhzyzuskvqqxhhb;')
 doautocmd TextChanged
 sleep 20m
 
 call win_gotoid(win_findbuf(s:second_source_buffer)[0])
-call append(line('$') - 1, '  part def UpdateFromWorkspaceB;')
+call append(line('$') - 1, '  part def Wlvdpberaxwlfwzyynom;')
 doautocmd TextChanged
 sleep 500m
 
-if join(getbufline(s:tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceA'
+if join(getbufline(s:tree_buffer, 1, '$'), "\n") !~# 'Bontuuhzyzuskvqqxhhb'
   cquit 12
 endif
-if join(getbufline(s:second_tree_buffer, 1, '$'), "\n") !~# 'UpdateFromWorkspaceB'
+if join(getbufline(s:second_tree_buffer, 1, '$'), "\n") !~# 'Wlvdpberaxwlfwzyynom'
   cquit 13
 endif
 let s:refreshed_graph_layout = getbufvar(s:graph_buffer, 'sysml_graph_layout', {})
 if empty(filter(
       \ copy(get(s:refreshed_graph_layout, 'nodes', [])),
-      \ 'v:val.name ==# "UpdateFromWorkspaceA"'
+      \ 'v:val.name ==# "Bontuuhzyzuskvqqxhhb"'
       \ ))
   cquit 27
 endif

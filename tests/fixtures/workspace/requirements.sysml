@@ -1,6 +1,6 @@
-package ReqPkg {
-  requirement def R1;
-  part def VerificationRig {
-    satisfy requirement R1 by self;
+package Mbugwy {
+  requirement def Sr;
+  part def Ewperodqqkkojjr {
+    satisfy requirement Sr by self;
   }
 }

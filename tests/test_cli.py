@@ -33,10 +33,10 @@ def test_cli_check_reports_diagnostics():
 
 
 def test_cli_definition_and_view():
-    code, out = run_cmd(["definition", "Vehicle", "--path", "tests/fixtures/workspace"])
+    code, out = run_cmd(["definition", "Ygkahzr", "--path", "tests/fixtures/workspace"])
     data = json.loads(out)
     assert code == 0
-    assert data["name"] == "Vehicle"
+    assert data["name"] == "Ygkahzr"
 
     code2, out2 = run_cmd([
         "view",
@@ -58,7 +58,7 @@ def test_cli_definition_and_view():
         "--format",
         "graph",
         "--focus",
-        "Vehicle",
+        "Ygkahzr",
     ])
     assert code3 == 0
     assert "View Graph: composition" in out3
@@ -71,7 +71,7 @@ def test_cli_definition_and_view():
         "--format",
         "graph-json",
         "--focus",
-        "Vehicle",
+        "Ygkahzr",
     ])
     graph_data = json.loads(out4)
     assert code4 == 0
@@ -103,10 +103,10 @@ def test_cli_reports_parser_status_and_uses_it_for_navigation():
     assert status["expected_parser"] == "SysML v2 Language Server (ANTLR)"
     assert status["response_validated"] is False
 
-    code2, out2 = run_cmd(["definition", "Vehicle", "--path", "tests/fixtures/workspace"])
+    code2, out2 = run_cmd(["definition", "Ygkahzr", "--path", "tests/fixtures/workspace"])
     payload = json.loads(out2)
     assert code2 == 0
-    assert payload["name"] == "Vehicle"
+    assert payload["name"] == "Ygkahzr"
 
 
 def test_cli_reports_missing_parser_instead_of_using_a_subset(monkeypatch, capsys):

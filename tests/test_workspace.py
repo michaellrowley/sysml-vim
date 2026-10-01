@@ -6,8 +6,8 @@ from sysml_vim.workspace import WorkspaceIndex
 def test_workspace_index_and_lookup():
     index = WorkspaceIndex(Path("tests/fixtures/workspace"))
     index.refresh()
-    assert index.definition("Vehicle")
-    refs = index.references("R1")
+    assert index.definition("Ygkahzr")
+    refs = index.references("Sr")
     assert any(r.get("relation") == "satisfy" for r in refs)
 
 
@@ -25,11 +25,11 @@ def test_workspace_import_and_behavior_references():
     index = WorkspaceIndex(Path("tests/fixtures/workspace"))
     index.refresh()
 
-    vehicle_refs = index.references("Vehicle")
+    vehicle_refs = index.references("Ygkahzr")
     assert any(r.get("relation") == "import" for r in vehicle_refs)
     assert any(r.get("relation") == "allocate" for r in vehicle_refs)
     assert any(r.get("relation") == "dependency" for r in vehicle_refs)
-    assert index.definition("Active")["kind"] == "state_def"
+    assert index.definition("Kmizbu")["kind"] == "state_def"
 
 
 def test_workspace_snapshot_detects_model_file_changes(tmp_path):
@@ -60,7 +60,7 @@ def test_workspace_snapshot_detects_model_file_changes(tmp_path):
             }
 
     model_file = tmp_path / "model.sysml"
-    model_file.write_text("package First;")
+    model_file.write_text("package Erzkl;")
     parser_adapter = CountingParser()
     index = WorkspaceIndex(model_file.parent, parser_adapter)
 
@@ -68,7 +68,7 @@ def test_workspace_snapshot_detects_model_file_changes(tmp_path):
     assert index.is_current() is True
     assert parser_adapter.calls == 1
 
-    model_file.write_text("package ChangedName;")
+    model_file.write_text("package Seelisfyamt;")
     assert index.is_current() is False
     index.refresh()
     assert parser_adapter.calls == 2
@@ -102,11 +102,11 @@ def test_workspace_indexes_unsaved_and_new_document_overrides(tmp_path):
             }
 
     existing_file = tmp_path / "model.sysml"
-    existing_file.write_text("package Saved;")
+    existing_file.write_text("package Tedsf;")
     new_file = tmp_path / "draft.sysml"
     source_overrides = {
-        str(existing_file): "package Unsaved;",
-        str(new_file): "package Draft;",
+        str(existing_file): "package Liogfct;",
+        str(new_file): "package Xpudv;",
     }
     parser_adapter = CapturingParser()
     index = WorkspaceIndex(tmp_path, parser_adapter)
@@ -117,8 +117,8 @@ def test_workspace_indexes_unsaved_and_new_document_overrides(tmp_path):
         source["path"]: source["text"]
         for source in parser_adapter.parsed_files
     }
-    assert parsed_text_by_path[str(existing_file.resolve())] == "package Unsaved;"
-    assert parsed_text_by_path[str(new_file.resolve())] == "package Draft;"
-    assert existing_file.read_text() == "package Saved;"
+    assert parsed_text_by_path[str(existing_file.resolve())] == "package Liogfct;"
+    assert parsed_text_by_path[str(new_file.resolve())] == "package Xpudv;"
+    assert existing_file.read_text() == "package Tedsf;"
     assert index.is_current(source_overrides) is True
     assert index.is_current() is False
