@@ -48,6 +48,9 @@ Checked on 2026-09-27:
 - Semantic queries (`sysml query`)
 - Structural tree (`sysml tree`)
 - Semantic views: package/composition/connections/requirements/traceability/dependencies/behavior/state
+- Focused SysML view usages resolve the standard `GeneralView`,
+  `InterconnectionView`, `ActionFlowView`, `StateTransitionView`,
+  `SequenceView`, `GeometryView`, `GridView`, or `BrowserView` presentation
 - Rendering formats: text, Graphviz DOT, SVG (when `dot` is installed), and a
   structural graph view
 - JSON-RPC server (`sysml-rpc`) with documented methods

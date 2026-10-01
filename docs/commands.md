@@ -37,6 +37,14 @@ All commands that read a model require the configured SysML language server. See
 
 `:v2 check` checks the current model file by default, using its current buffer text; `:v2 check-workspace` checks the current working directory and includes unsaved text from loaded model buffers in that workspace. `:v2 tree`, `:v2 view`, and `:v2 graph` open in a dedicated tab instead of splitting the current window. `:v2 graph` with no argument renders the whole workspace; pass a model element name to focus it. The source tab stays available, and each view refreshes after edits to loaded SysML/KerML buffers in its workspace. The persistent RPC backend sends those buffers' current text, including unsaved edits, to the parser. If RPC is unavailable while model buffers have unsaved changes, checks and views report that they cannot safely use current text rather than displaying stale disk contents.
 
+To use an OMG standard SysML v2 view presentation, focus a view usage typed by
+the corresponding standard view definition (or a custom definition that
+specializes it). For example, `:V2g bleTraceView` and
+`sysml view composition --focus bleTraceView --format graph` resolve the
+view usage's definition and render its presentation. `composition` remains the
+backend view query; the SysML view definition, not a new CLI type name, selects
+the presentation. See [view presentations](views.md#standard-sysml-v2-view-definitions).
+
 The lowercase shortcuts are aliases for the full command set:
 
 | Shortcut | Command |

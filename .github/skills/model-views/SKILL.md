@@ -25,6 +25,18 @@ relevant projection/rendering code in `render.py` or `diagram.py`.
 - Keep view types and output formats coherent across `build_view`, renderer
   functions, CLI/RPC surfaces, and documentation. Rendering should consume the
   shared view model rather than independently re-querying or parsing source.
+- For a focused SysML view usage, resolve the typed view definition and its
+  projected specialization chain before choosing a standard presentation.
+  The LSP may expose view-definition inheritance through type attributes such
+  as `partType`, not only `specializes` references. Keep exposure/filter
+  selection separate from rendering style, and label any presentation behavior
+  that depends on partial LSP attributes or relationships.
+- For interconnection diagrams, keep projected features with their part owner.
+  Follow projected part-usage/type-definition chains for declared features and
+  attach those features to the exposed part usage. Do not promote unowned
+  interface-end or definition features to peer parts; omit them when the
+  projection does not connect them to a part, while retaining connector
+  relationships that are projected between parts.
 - Structural graph output is also consumed by editor navigation and highlighting.
   Preserve stable node/edge identity and valid geometry when changing its
   structured output; account for terminal display width when laying out text.

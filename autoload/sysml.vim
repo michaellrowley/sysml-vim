@@ -372,6 +372,11 @@ function! s:open_view_buffer(name, lines, session) abort
   if a:session.method ==# 'view_graph'
     setlocal nocursorline
     setlocal nowrap sidescroll=1
+    if get(get(a:session, 'graph_layout', {}), 'presentation', '') ==# 'browser'
+      setlocal foldmethod=indent shiftwidth=2 foldlevel=99 foldenable
+    else
+      setlocal nofoldenable
+    endif
     call s:setup_graph_buffer()
     call s:graph_apply_styles()
     if empty(maparg(']n', 'n'))
