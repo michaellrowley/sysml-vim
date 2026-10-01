@@ -120,6 +120,7 @@ Example request line:
 - `docs/lsp-parser.md`
 - `docs/troubleshooting.md`
 - `docs/development.md`
+- `docs/agent-skills.md`
 - Vim help: `:help sysml-vim`
 
 ## Development
