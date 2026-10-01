@@ -98,6 +98,9 @@ if &l:cursorline || empty(s:selection_match) || empty(s:selected_node)
       \ || s:has_edge_route_color != 2 || !hlexists('SysmlGraphJunction')
   cquit 24
 endif
+if &l:wrap || &l:sidescroll != 1
+  cquit 27
+endif
 if get(s:selection_match, 'group', '') !=# 'SysmlGraphSelection'
   cquit 26
 endif

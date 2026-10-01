@@ -370,6 +370,7 @@ function! s:open_view_buffer(name, lines, session) abort
   let b:sysml_view_method = a:session.method
   if a:session.method ==# 'view_graph'
     setlocal nocursorline
+    setlocal nowrap sidescroll=1
     call s:setup_graph_buffer()
     call s:graph_apply_styles()
     if empty(maparg(']n', 'n'))

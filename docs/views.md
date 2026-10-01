@@ -28,6 +28,8 @@ Vim command:
   between boxes; backward and cyclic relationships use an outer gutter.
   Unconnected definitions are packed into compact rows below connected
   structures. Box labels wrap to fit the available Vim window width.
+  Graph buffers disable Vim's line wrapping to preserve box alignment; use
+  horizontal scrolling (`zh` / `zl`) to inspect diagrams wider than the window.
   Relationship labels are listed below the diagram. When `focus` names a
   SysML view usage, the graph renders its exposed elements and their available
   typing/connection relationships, restricted by the associated view
