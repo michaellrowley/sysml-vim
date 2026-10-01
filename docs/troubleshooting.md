@@ -1,7 +1,8 @@
 # Troubleshooting
 
 - `sysml: command not found`: install backend (`pip install -e .`) and set `g:sysml_backend_cmd`.
-- No SVG output: install Graphviz (`dot`) and re-run `sysml health`.
+- No SVG output: install Graphviz (`dot`; the automated macOS installer adds
+  it), verify with `dot -V`, then retry the SVG export.
 - `SysML v2 parsing is unavailable`: install Node.js 20+ and `sysml-v2-lsp@0.31.0`, then configure `SYSML_LSP_SERVER` as shown in [the setup guide](lsp-parser.md).
 - `language server command was not found`: verify the first executable in `SYSML_LSP_COMMAND` is on `PATH`, or unset the override and check the `SYSML_LSP_SERVER` path.
 - `language server did not publish diagnostics`: confirm the configured server supports LSP diagnostics and that the process can finish parsing the workspace. Run `sysml check <workspace>` from a terminal to see the backend error.

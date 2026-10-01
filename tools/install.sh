@@ -24,7 +24,7 @@ if [[ "${1:-}" == "--help" ]]; then
 Install the SysML v2 language server, the sysml-vim Python backend, and Vim plugin.
 
 Run this script from a sysml-vim checkout. Homebrew is used on macOS to install
-missing Python 3.11+, Node.js 20+, or Vim dependencies.
+missing Python 3.11+, Node.js 20+, Vim, or Graphviz (`dot`) dependencies.
 
 Overrides:
   SYSML_VIM_INSTALL_ROOT  data and Python environment directory
@@ -45,6 +45,7 @@ if ! node_is_supported || ! command -v npm >/dev/null 2>&1; then
   brew_packages+=(node)
 fi
 command -v vim >/dev/null 2>&1 || brew_packages+=(vim)
+command -v dot >/dev/null 2>&1 || brew_packages+=(graphviz)
 
 if (( ${#brew_packages[@]} > 0 )); then
   command -v brew >/dev/null 2>&1 || fail "install Homebrew to provide missing prerequisites: ${brew_packages[*]}"

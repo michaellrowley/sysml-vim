@@ -30,7 +30,7 @@ With Homebrew installed, this one-line command clones sysml-vim into Vim's packa
 brew install git && mkdir -p "$HOME/.vim/pack/plugins/start" && git clone https://github.com/michaellrowley/sysml-vim "$HOME/.vim/pack/plugins/start/sysml-vim" && "$HOME/.vim/pack/plugins/start/sysml-vim/tools/install.sh"
 ```
 
-The installer uses Homebrew for missing Python 3.11+, Node.js 20+, npm, or Vim dependencies; installs the pinned `sysml-v2-lsp` package; creates a dedicated Python virtual environment; activates the plugin without replacing an existing checkout; and adds an idempotent configuration include to `~/.vimrc`. Restart Vim after it completes. For an existing checkout, run `./tools/install.sh` from its root.
+The installer uses Homebrew for missing Python 3.11+, Node.js 20+, npm, Vim, or Graphviz (`dot`) dependencies; installs the pinned `sysml-v2-lsp` package; creates a dedicated Python virtual environment; activates the plugin without replacing an existing checkout; and adds an idempotent configuration include to `~/.vimrc`. Restart Vim after it completes. For an existing checkout, run `./tools/install.sh` from its root.
 
 ## Vim (vim-plug)
 
@@ -62,10 +62,12 @@ Install the same Python and Node dependencies as for Vim. Neovim must inherit `S
 
 Clone into `~/.vim/pack/vendor/start/sysml-vim` (or the Neovim equivalent), then run `./tools/install.sh` from that checkout.
 
-## Optional Graphviz for SVG
+## Graphviz for SVG
 
-Install Graphviz and verify:
+Graphviz is only required for SVG rendering. The automated macOS installer
+installs it if `dot` is missing. For manual installations, use the package manager for your operating system:
 
-```bash
-dot -V
-```
+- macOS: `brew install graphviz`
+- Debian/Ubuntu: `sudo apt-get install graphviz`
+
+Verify the installation with `dot -V`.

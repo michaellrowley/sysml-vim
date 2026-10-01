@@ -51,8 +51,8 @@ Checked on 2026-09-27:
 - Focused SysML view usages resolve the standard `GeneralView`,
   `InterconnectionView`, `ActionFlowView`, `StateTransitionView`,
   `SequenceView`, `GeometryView`, `GridView`, or `BrowserView` presentation
-- Rendering formats: text, Graphviz DOT, SVG (when `dot` is installed), and a
-  structural graph view
+- Rendering formats: text, Graphviz DOT, SVG (Graphviz is installed by the
+  automated macOS installer), and a structural graph view
 - JSON-RPC server (`sysml-rpc`) with documented methods
 - SysML v2 language-server integration via `SYSML_LSP_SERVER` or `SYSML_LSP_COMMAND`
 
@@ -83,11 +83,11 @@ sysml check tests/fixtures/workspace
 sysml view composition --path tests/fixtures/workspace --format text
 ```
 
-The language server requires Node.js 20 or newer. The `sysml-rpc` backend keeps its LSP process alive and reuses the server's parse cache for an unchanged workspace. See [the complete setup](docs/lsp-parser.md). Without the language server, model commands report an explicit error rather than using an incomplete parser.
+The language server requires Node.js 20 or newer. The `sysml-rpc` backend keeps its LSP process alive and reuses the server's parse cache for an unchanged workspace. SVG rendering requires Graphviz (`dot`); the automated macOS installer installs it when missing. See [the complete setup](docs/lsp-parser.md). Without the language server, model commands report an explicit error rather than using an incomplete parser.
 
 ### Full one-line Vim install (macOS)
 
-Requires Homebrew. This clones sysml-vim into Vim's package directory and runs the installer, which installs missing prerequisites, the pinned LSP package, a dedicated Python environment, and Vim configuration:
+Requires Homebrew. This clones sysml-vim into Vim's package directory and runs the installer, which installs missing prerequisites (including Graphviz for SVG output), the pinned LSP package, a dedicated Python environment, and Vim configuration:
 
 ```sh
 brew install git && mkdir -p "$HOME/.vim/pack/plugins/start" && git clone https://github.com/michaellrowley/sysml-vim "$HOME/.vim/pack/plugins/start/sysml-vim" && "$HOME/.vim/pack/plugins/start/sysml-vim/tools/install.sh"
