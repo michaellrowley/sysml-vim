@@ -36,6 +36,8 @@ Vim command:
   typing/connection relationships, restricted by the associated view
   definition's `viewFilters`, instead of showing the view usage as a standalone
   node.
+  Wildcard expose targets expand within their resolved package: `Package::*`
+  includes direct members, while `Package::**` includes members recursively.
 
 Within a graph buffer, arrow keys trace outward from the selected box and move
 to the first node hit in that direction. If no ray intersects a node, they

@@ -153,6 +153,91 @@ def _diagram_type(symbol: dict[str, Any]) -> str | None:
     return None
 
 
+def _qualified_symbol_path(symbol: dict[str, Any]) -> tuple[str, ...]:
+    name = symbol.get("name")
+    if not isinstance(name, str) or not name:
+        return ()
+    ancestors = symbol.get("ancestors", ())
+    if not isinstance(ancestors, (list, tuple)) or any(
+        not isinstance(ancestor, str) for ancestor in ancestors
+    ):
+        ancestors = ()
+    return (*ancestors, name)
+
+
+def _expose_target_names(
+    target: str,
+    symbols: list[dict[str, Any]],
+    view_symbol: dict[str, Any],
+) -> set[str]:
+    parts = tuple(part.strip() for part in target.strip().split("::") if part.strip())
+    if not parts or parts[-1] not in {"*", "**"}:
+        return {parts[-1]} if parts else set()
+
+    wildcard = parts[-1]
+    scope_parts = parts[:-1]
+    view_path = _qualified_symbol_path(view_symbol)
+    owner_path = view_path[:-1]
+    if not owner_path:
+        container = view_symbol.get("container")
+        if isinstance(container, str) and container:
+            owner_path = (container,)
+
+    if scope_parts:
+        package_paths = set()
+        for symbol in symbols:
+            if symbol.get("kind", "").lower() not in {"package", "package_def"}:
+                continue
+            path = _qualified_symbol_path(symbol)
+            if path[-len(scope_parts) :] == scope_parts:
+                package_paths.add(path)
+        if not package_paths:
+            return set()
+
+        def common_prefix_length(path: tuple[str, ...]) -> int:
+            return sum(
+                1
+                for actual, expected in zip(path, owner_path)
+                if actual == expected
+            )
+
+        best_common_prefix = max(
+            common_prefix_length(path) for path in package_paths
+        )
+        if best_common_prefix == 0 and len(package_paths) > 1:
+            return set()
+        best_score = max(
+            (
+                common_prefix_length(path),
+                -abs(len(path) - len(owner_path)),
+            )
+            for path in package_paths
+        )
+        scope_paths = {
+            path
+            for path in package_paths
+            if (
+                common_prefix_length(path),
+                -abs(len(path) - len(owner_path)),
+            )
+            == best_score
+        }
+    else:
+        scope_paths = {owner_path}
+
+    exposed_names = set()
+    for symbol in symbols:
+        path = _qualified_symbol_path(symbol)
+        for scope_path in scope_paths:
+            if path[: len(scope_path)] != scope_path:
+                continue
+            relative_depth = len(path) - len(scope_path)
+            if relative_depth > 0 and (wildcard == "**" or relative_depth == 1):
+                exposed_names.add(symbol["name"])
+                break
+    return exposed_names
+
+
 def _view_composition(
     symbols: list[dict[str, Any]],
     refs: list[Reference],
@@ -194,11 +279,11 @@ def _view_composition(
         if isinstance(targets, str):
             targets = targets.split(",")
         if isinstance(targets, (list, tuple)):
-            exposed_names.update(
-                target.rsplit("::", 1)[-1].strip()
-                for target in targets
-                if isinstance(target, str) and target.strip()
-            )
+            for target in targets:
+                if isinstance(target, str) and target.strip():
+                    exposed_names.update(
+                        _expose_target_names(target, symbols, view_symbol)
+                    )
     if not exposed_names:
         return None
 

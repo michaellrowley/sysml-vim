@@ -159,6 +159,97 @@ def test_graph_focused_on_view_renders_exposed_elements():
     assert "- Vehicle -[satisfy]-> RF1" in graph
 
 
+def test_graph_view_expands_recursive_and_direct_expose_wildcards():
+    file = "/workspace/model.sysml"
+    symbols = [
+        {
+            "name": "RF",
+            "kind": "package",
+            "file": file,
+            "range": {"line": 1, "col": 8, "end_col": 10},
+            "container": None,
+            "ancestors": [],
+        },
+        {
+            "name": "BLE",
+            "kind": "package",
+            "file": file,
+            "range": {"line": 2, "col": 12, "end_col": 15},
+            "container": "RF",
+            "ancestors": ["RF"],
+        },
+        {
+            "name": "traceView",
+            "kind": "view_usage",
+            "file": file,
+            "range": {"line": 3, "col": 7, "end_col": 16},
+            "container": "BLE",
+            "ancestors": ["RF", "BLE"],
+            "attributes": {"exposeTargets": "BLE::**"},
+        },
+        {
+            "name": "bleSensor",
+            "kind": "part_usage",
+            "file": file,
+            "range": {"line": 4, "col": 8, "end_col": 17},
+            "container": "BLE",
+            "ancestors": ["RF", "BLE"],
+        },
+        {
+            "name": "Nested",
+            "kind": "package",
+            "file": file,
+            "range": {"line": 5, "col": 12, "end_col": 18},
+            "container": "BLE",
+            "ancestors": ["RF", "BLE"],
+        },
+        {
+            "name": "nestedPart",
+            "kind": "part_usage",
+            "file": file,
+            "range": {"line": 6, "col": 8, "end_col": 18},
+            "container": "Nested",
+            "ancestors": ["RF", "BLE", "Nested"],
+        },
+        {
+            "name": "rfSibling",
+            "kind": "part_usage",
+            "file": file,
+            "range": {"line": 7, "col": 8, "end_col": 17},
+            "container": "RF",
+            "ancestors": ["RF"],
+        },
+        {
+            "name": "Other",
+            "kind": "package",
+            "file": file,
+            "range": {"line": 8, "col": 12, "end_col": 17},
+            "container": "RF",
+            "ancestors": ["RF"],
+        },
+        {
+            "name": "otherPart",
+            "kind": "part_usage",
+            "file": file,
+            "range": {"line": 9, "col": 8, "end_col": 17},
+            "container": "Other",
+            "ancestors": ["RF", "Other"],
+        },
+    ]
+    index = SimpleNamespace(symbols=lambda: symbols, references_by_name={})
+
+    recursive_view = build_view(index, "composition", focus="traceView")
+    recursive_names = {symbol["name"] for symbol in recursive_view["nodes"]}
+    assert {"bleSensor", "Nested", "nestedPart"} <= recursive_names
+    assert not {"BLE", "traceView", "rfSibling", "Other", "otherPart"} & recursive_names
+
+    symbols[2]["attributes"]["exposeTargets"] = "BLE::*"
+    direct_view = build_view(index, "composition", focus="traceView")
+    direct_names = {symbol["name"] for symbol in direct_view["nodes"]}
+    assert {"bleSensor", "Nested"} <= direct_names
+    assert not {"BLE", "traceView", "nestedPart", "rfSibling", "Other", "otherPart"} & direct_names
+
+
 def test_graph_view_renders_exposed_parts_and_connection_ports():
     file = "/workspace/model.sysml"
     symbols = [
