@@ -35,17 +35,36 @@ def _view_connection_edges(
         if symbol["name"] not in exposed_names or symbol["kind"].lower() != "interface":
             continue
         source_text = source_texts.get(symbol["file"], "")
+        symbol_range = symbol.get("range", {})
+        start_offset = 0
+        declaration_line = None
+        if isinstance(symbol_range, dict) and isinstance(
+            symbol_range.get("line"), int
+        ):
+            declaration_line = symbol_range["line"] - 1
+            source_lines = source_text.splitlines(keepends=True)
+            start_offset = sum(
+                len(line) for line in source_lines[: max(0, declaration_line)]
+            )
         declaration = re.search(
-            rf"\binterface\s+{re.escape(symbol['name'])}\s+connect\b",
-            source_text,
+            rf"\binterface\s+{re.escape(symbol['name'])}\b"
+            r"(?:\s*:\s*[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)?\s+connect\b",
+            source_text[start_offset:],
         )
         if declaration is None:
             continue
-        statement_end = source_text.find(";", declaration.end())
+        declaration_start = start_offset + declaration.start()
+        if (
+            declaration_line is not None
+            and source_text.count("\n", 0, declaration_start) != declaration_line
+        ):
+            continue
+        declaration_end = start_offset + declaration.end()
+        statement_end = source_text.find(";", declaration_end)
         if statement_end < 0:
             continue
         endpoints = _CONNECT_ENDPOINTS.search(
-            source_text[declaration.end() : statement_end]
+            source_text[declaration_end:statement_end]
         )
         if endpoints is None:
             continue
@@ -80,6 +99,102 @@ def _view_connection_edges(
         )
         rendered_connections.add(symbol["name"])
     return edges, rendered_connections
+
+
+def _symbol_qualified_path(symbol: dict[str, Any]) -> tuple[str, ...]:
+    ancestors = symbol.get("ancestors", ())
+    if not isinstance(ancestors, (list, tuple)):
+        ancestors = ()
+    return (
+        tuple(name for name in ancestors if isinstance(name, str) and name)
+        + (symbol["name"],)
+    )
+
+
+def _symbol_identity(symbol: dict[str, Any]) -> tuple[str, str, Any, Any]:
+    source_range = symbol.get("range", {})
+    if not isinstance(source_range, dict):
+        source_range = {}
+    return (
+        symbol["file"],
+        symbol["name"],
+        source_range.get("line", 0),
+        source_range.get("col", 0),
+    )
+
+
+def _wildcard_exposed_symbols(
+    symbols: list[dict[str, Any]],
+    view_symbol: dict[str, Any],
+    target: str,
+    filter_kinds: set[str] | None,
+) -> list[dict[str, Any]]:
+    target_path = tuple(
+        component
+        for component in target.removesuffix("::**").split("::")
+        if component
+    )
+    if not target_path:
+        return []
+
+    view_path = _symbol_qualified_path(view_symbol)[:-1]
+    if (
+        view_symbol.get("container")
+        and (not view_path or view_path[-1] != view_symbol["container"])
+    ):
+        view_path = (*view_path, view_symbol["container"])
+
+    package_symbols = [
+        symbol
+        for symbol in symbols
+        if symbol["kind"].lower() in {"package", "package_def"}
+    ]
+
+    def package_rank(
+        package: dict[str, Any],
+    ) -> tuple[int, int, int]:
+        package_path = _symbol_qualified_path(package)
+        if (
+            len(target_path) <= len(view_path)
+            and view_path[-len(target_path) :] == target_path
+            and package_path == view_path
+        ):
+            match_rank = 4
+        elif package_path == (*view_path, *target_path):
+            match_rank = 3
+        elif (
+            len(target_path) <= len(package_path)
+            and package_path[-len(target_path) :] == target_path
+        ):
+            match_rank = 2
+        else:
+            match_rank = 0
+        common_prefix = 0
+        for package_part, view_part in zip(package_path, view_path):
+            if package_part != view_part:
+                break
+            common_prefix += 1
+        same_file = int(package["file"] == view_symbol["file"])
+        return match_rank, common_prefix, same_file
+
+    matching_packages = [
+        package for package in package_symbols if package_rank(package)[0] > 0
+    ]
+    if not matching_packages:
+        return []
+    package = max(matching_packages, key=package_rank)
+    package_path = _symbol_qualified_path(package)
+
+    return [
+        symbol
+        for symbol in symbols
+        if len(_symbol_qualified_path(symbol)) > len(package_path)
+        and _symbol_qualified_path(symbol)[: len(package_path)] == package_path
+        and (
+            filter_kinds is None
+            or _view_kind_is_allowed(symbol["kind"].lower(), filter_kinds)
+        )
+    ]
 
 
 def _view_kind_is_allowed(kind: str, filter_kinds: set[str]) -> bool:
@@ -185,7 +300,9 @@ def _view_composition(
         if (ref.relation or "").lower() in {"expose", "exposes"}
         and ref.source in view_scope
     ]
-    exposed_names = {ref.name for ref in exposure_refs}
+    explicit_exposed_names = {ref.name for ref in exposure_refs}
+    filter_kinds = _view_filter_kinds(symbols, view_symbols)
+    wildcard_exposed_symbols = []
     for view_symbol in view_symbols:
         attributes = view_symbol.get("attributes", {})
         if not isinstance(attributes, dict):
@@ -194,32 +311,54 @@ def _view_composition(
         if isinstance(targets, str):
             targets = targets.split(",")
         if isinstance(targets, (list, tuple)):
-            exposed_names.update(
-                target.rsplit("::", 1)[-1].strip()
-                for target in targets
-                if isinstance(target, str) and target.strip()
-            )
+            for target in targets:
+                if not isinstance(target, str) or not target.strip():
+                    continue
+                target = target.strip()
+                if target.endswith("::**"):
+                    wildcard_exposed_symbols.extend(
+                        _wildcard_exposed_symbols(
+                            symbols,
+                            view_symbol,
+                            target,
+                            filter_kinds,
+                        )
+                    )
+                else:
+                    explicit_exposed_names.add(target.rsplit("::", 1)[-1].strip())
+    wildcard_exposed_keys = {
+        _symbol_identity(symbol) for symbol in wildcard_exposed_symbols
+    }
+    wildcard_exposed_names = {
+        symbol["name"] for symbol in wildcard_exposed_symbols
+    }
+    exposed_names = explicit_exposed_names | wildcard_exposed_names
     if not exposed_names:
         return None
 
     local_exposed_names = {
         symbol["name"]
         for symbol in symbols
-        if symbol["name"] in exposed_names and symbol["file"] in view_files
+        if symbol["name"] in explicit_exposed_names and symbol["file"] in view_files
     }
     exposed_symbols = [
         symbol
         for symbol in symbols
-        if symbol["name"] in exposed_names
+        if symbol["name"] in explicit_exposed_names
         and (
             symbol["file"] in view_files
             or symbol["name"] not in local_exposed_names
         )
     ]
+    exposed_symbol_keys = {_symbol_identity(symbol) for symbol in exposed_symbols}
+    for symbol in wildcard_exposed_symbols:
+        symbol_key = _symbol_identity(symbol)
+        if symbol_key not in exposed_symbol_keys:
+            exposed_symbols.append(symbol)
+            exposed_symbol_keys.add(symbol_key)
     if not exposed_symbols:
         return None
 
-    filter_kinds = _view_filter_kinds(symbols, view_symbols)
     selected_names = set(exposed_names)
     symbols_by_name = {symbol["name"]: symbol for symbol in symbols}
     for symbol in exposed_symbols:
@@ -246,7 +385,7 @@ def _view_composition(
         and ref.relation.lower() not in {"expose", "exposes", "contains"}
     ]
     connection_edges, rendered_connections = _view_connection_edges(
-        symbols,
+        exposed_symbols,
         source_texts,
         exposed_names,
         filter_kinds,
@@ -300,6 +439,11 @@ def _view_composition(
         and (
             filter_kinds is None
             or _view_kind_is_allowed(symbol["kind"].lower(), filter_kinds)
+        )
+        and (
+            symbol["name"] not in wildcard_exposed_names
+            or symbol["name"] in explicit_exposed_names
+            or _symbol_identity(symbol) in wildcard_exposed_keys
         )
     ]
     visible_symbols_by_name = {symbol["name"]: symbol for symbol in visible_symbols}

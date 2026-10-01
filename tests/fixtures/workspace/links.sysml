@@ -1,9 +1,9 @@
-package LinkPkg {
-  private import VehiclePkg::Vehicle;
+package Wjhfgql {
+  private import Hklqswumzd::Ygkahzr;
 
-  part def Fleet {
-    part lead: Vehicle;
-    allocate lead to Vehicle;
-    dependency from Fleet to Vehicle;
+  part def Pxish {
+    part hcgg: Ygkahzr;
+    allocate hcgg to Ygkahzr;
+    dependency from Pxish to Ygkahzr;
   }
 }

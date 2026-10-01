@@ -56,14 +56,14 @@ call sysml#check_workspace(s:fixture_workspace)
 if empty(filter(getqflist(), 'v:val.text ==# "diagnostic from unsaved buffer"'))
   cquit 9
 endif
-call feedkeys(":v2g Vehicle\<CR>", 'xt')
+call feedkeys(":v2g Ygkahzr\<CR>", 'xt')
 if bufname('%') !~# '^sysml-graph-'
   cquit 3
 endif
 if tabpagenr('$') != 2 || winnr('$') != 1
   cquit 5
 endif
-call feedkeys(":v2 graph Vehicle\<CR>", 'xt')
+call feedkeys(":v2 graph Ygkahzr\<CR>", 'xt')
 if bufname('%') !~# '^sysml-graph-'
   cquit 6
 endif

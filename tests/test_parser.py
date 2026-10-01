@@ -11,18 +11,18 @@ def test_lsp_model_projection_indexes_representative_sysml_constructs():
     index.refresh()
 
     symbols_by_name = {symbol["name"]: symbol for symbol in index.symbols()}
-    assert symbols_by_name["Vehicle"]["kind"] == "part_def"
-    assert symbols_by_name["engine"]["kind"] == "part_usage"
-    assert symbols_by_name["R1"]["kind"] == "requirement_def"
-    assert symbols_by_name["Controller"]["kind"] == "part_def"
-    assert symbols_by_name["Idle"]["kind"] == "state_def"
-    assert symbols_by_name["Start"]["kind"] == "action_def"
+    assert symbols_by_name["Ygkahzr"]["kind"] == "part_def"
+    assert symbols_by_name["hxipof"]["kind"] == "part_usage"
+    assert symbols_by_name["Sr"]["kind"] == "requirement_def"
+    assert symbols_by_name["Fdopfyfvfw"]["kind"] == "part_def"
+    assert symbols_by_name["Vter"]["kind"] == "state_def"
+    assert symbols_by_name["Thhat"]["kind"] == "action_def"
 
     reference_relations = {
-        reference["relation"] for reference in index.references("Vehicle")
+        reference["relation"] for reference in index.references("Ygkahzr")
     }
     assert {"import", "allocate", "dependency"} <= reference_relations
-    assert any(reference["relation"] == "satisfy" for reference in index.references("R1"))
+    assert any(reference["relation"] == "satisfy" for reference in index.references("Sr"))
 
 
 def test_language_server_diagnostics_are_preserved():

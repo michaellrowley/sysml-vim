@@ -18,13 +18,13 @@ def test_rpc_definition():
             "jsonrpc": "2.0",
             "id": 1,
             "method": "definition",
-            "params": {"path": "tests/fixtures/workspace", "name": "Vehicle"},
+            "params": {"path": "tests/fixtures/workspace", "name": "Ygkahzr"},
         }
         proc.stdin.write(json.dumps(req) + "\n")
         proc.stdin.flush()
         line = proc.stdout.readline()
         resp = json.loads(line)
-        assert resp["result"]["name"] == "Vehicle"
+        assert resp["result"]["name"] == "Ygkahzr"
 
         proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 2, "method": "shutdown", "params": {}}) + "\n")
         proc.stdin.flush()
@@ -143,7 +143,7 @@ def test_rpc_view_text_and_health_report_parser_capabilities():
             "jsonrpc": "2.0",
             "id": 23,
             "method": "view_graph",
-            "params": {"path": "tests/fixtures/workspace", "type": "composition", "focus": "Vehicle"},
+            "params": {"path": "tests/fixtures/workspace", "type": "composition", "focus": "Ygkahzr"},
         }
         proc.stdin.write(json.dumps(graph_req) + "\n")
         proc.stdin.flush()
@@ -170,8 +170,8 @@ def test_rpc_tree_includes_unsaved_document_text():
     model_path = str(Path("tests/fixtures/workspace/vehicle.sysml").resolve())
     source_text = Path(model_path).read_text(encoding="utf-8")
     source_text = source_text.replace(
-        "  part def Wheel;\n}",
-        "  part def Wheel;\n  part def DraftOnly;\n}",
+        "  part def Moech;\n}",
+        "  part def Moech;\n  part def Efvkuinaq;\n}",
     )
     proc = subprocess.Popen(
         [sys.executable, "-m", "sysml_vim.rpc"],
@@ -194,7 +194,7 @@ def test_rpc_tree_includes_unsaved_document_text():
         proc.stdin.flush()
         response = json.loads(proc.stdout.readline())
         assert any(
-            symbol["name"] == "DraftOnly"
+            symbol["name"] == "Efvkuinaq"
             for symbol in response["result"]["files"][model_path]
         )
     finally:

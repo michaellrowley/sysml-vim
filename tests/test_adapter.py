@@ -37,9 +37,9 @@ def test_adapter_uses_the_lsp_model_and_diagnostics_contract(monkeypatch):
     vehicle = next(
         symbol
         for symbol in response["files"][0]["symbols"]
-        if symbol["name"] == "Vehicle"
+        if symbol["name"] == "Ygkahzr"
     )
-    assert vehicle["ancestors"] == ["VehiclePkg"]
+    assert vehicle["ancestors"] == ["Hklqswumzd"]
     assert vehicle["attributes"] == {}
 
 

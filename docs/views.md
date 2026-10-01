@@ -35,7 +35,10 @@ Vim command:
   SysML view usage, the graph renders its exposed elements and their available
   typing/connection relationships, restricted by the associated view
   definition's `viewFilters`, instead of showing the view usage as a standalone
-  node.
+  node. Package wildcard exposures such as `Package::**` expand recursively
+  within the resolved package scope. Named interface connection usages are
+  rendered as labeled edges when declared with `connect`, including typed
+  interface usages.
 
 Within a graph buffer, arrow keys trace outward from the selected box and move
 to the first node hit in that direction. If no ray intersects a node, they
