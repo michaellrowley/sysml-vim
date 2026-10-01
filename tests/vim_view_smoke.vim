@@ -98,8 +98,29 @@ if &l:cursorline || empty(s:selection_match) || empty(s:selected_node)
       \ || s:has_edge_route_color != 2 || !hlexists('SysmlGraphJunction')
   cquit 24
 endif
+if &l:wrap || &l:sidescroll != 1
+  cquit 27
+endif
 if get(s:selection_match, 'group', '') !=# 'SysmlGraphSelection'
   cquit 26
+endif
+if synIDtrans(hlID('SysmlGraphSelection')) != hlID('Visual')
+  cquit 32
+endif
+let s:graph_window_id = win_getid()
+let s:original_graph_width = get(b:sysml_graph_layout, 'width', 0)
+vsplit
+let s:split_graph_window_id = win_getid()
+setlocal wrap
+call win_gotoid(s:graph_window_id)
+call win_gotoid(s:split_graph_window_id)
+if &l:wrap || get(b:sysml_graph_layout, 'width', 0) >= s:original_graph_width
+  cquit 35
+endif
+close
+sleep 100m
+if &l:wrap || get(b:sysml_graph_layout, 'width', 0) != s:original_graph_width
+  cquit 36
 endif
 let s:top_box_text = strcharpart(
       \ getline(s:selected_node.top),
@@ -185,7 +206,6 @@ endif
 
 let s:navigation_nodes = get(get(b:, 'sysml_graph_layout', {}), 'nodes', [])
 let s:leftmost_node = {}
-let s:max_node_right = 0
 for s:node in s:navigation_nodes
   let s:center_x = s:node.left + (s:node.right - s:node.left) / 2
   if empty(s:leftmost_node)
@@ -193,7 +213,6 @@ for s:node in s:navigation_nodes
               \ + (s:leftmost_node.right - s:leftmost_node.left) / 2
     let s:leftmost_node = s:node
   endif
-  let s:max_node_right = max([s:max_node_right, s:node.right])
 endfor
 let b:sysml_graph_selection = {
       \ 'kind': 'node',
@@ -230,8 +249,82 @@ while s:navigation_steps < len(s:navigation_nodes)
   let s:current_node = s:next_node
   let s:navigation_steps += 1
 endwhile
-if s:current_node.right != s:max_node_right
+call sysml#graph_move('right')
+if get(get(b:, 'sysml_graph_selection', {}), 'name', '') !=# s:current_node.name
   cquit 31
+endif
+
+let b:sysml_graph_layout.nodes = [
+      \ {
+      \   'id': 'ray-current',
+      \   'name': 'RayCurrent',
+      \   'top': 4,
+      \   'bottom': 8,
+      \   'left': 2,
+      \   'right': 8,
+      \   'line': 6,
+      \   'col': 4
+      \ },
+      \ {
+      \   'id': 'ray-right',
+      \   'name': 'RayRight',
+      \   'top': 4,
+      \   'bottom': 8,
+      \   'left': 30,
+      \   'right': 36,
+      \   'line': 6,
+      \   'col': 32
+      \ },
+      \ {
+      \   'id': 'ray-diagonal',
+      \   'name': 'RayDiagonal',
+      \   'top': 1,
+      \   'bottom': 3,
+      \   'left': 13,
+      \   'right': 19,
+      \   'line': 2,
+      \   'col': 15
+      \ },
+      \ {
+      \   'id': 'ray-down',
+      \   'name': 'RayDown',
+      \   'top': 12,
+      \   'bottom': 16,
+      \   'left': 2,
+      \   'right': 8,
+      \   'line': 14,
+      \   'col': 4
+      \ },
+      \ {
+      \   'id': 'ray-diagonal-down',
+      \   'name': 'RayDiagonalDown',
+      \   'top': 9,
+      \   'bottom': 11,
+      \   'left': 6,
+      \   'right': 8,
+      \   'line': 10,
+      \   'col': 7
+      \ }
+      \ ]
+let b:sysml_graph_selection = {
+      \ 'kind': 'node',
+      \ 'id': 'ray-current',
+      \ 'name': 'RayCurrent'
+      \ }
+call cursor(6, 4)
+call sysml#graph_move('right')
+if get(get(b:, 'sysml_graph_selection', {}), 'name', '') !=# 'RayRight'
+  cquit 33
+endif
+let b:sysml_graph_selection = {
+      \ 'kind': 'node',
+      \ 'id': 'ray-current',
+      \ 'name': 'RayCurrent'
+      \ }
+call cursor(6, 4)
+call sysml#graph_move('down')
+if get(get(b:, 'sysml_graph_selection', {}), 'name', '') !=# 'RayDown'
+  cquit 34
 endif
 
 let s:workspace_b = tempname()

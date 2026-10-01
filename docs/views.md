@@ -28,13 +28,18 @@ Vim command:
   between boxes; backward and cyclic relationships use an outer gutter.
   Unconnected definitions are packed into compact rows below connected
   structures. Box labels wrap to fit the available Vim window width.
+  Graph layouts reflow to the narrowest window displaying them after splits or
+  resizes. Every graph window disables Vim's line wrapping to preserve box
+  alignment; use horizontal scrolling (`zh` / `zl`) for any remaining overflow.
   Relationship labels are listed below the diagram. When `focus` names a
   SysML view usage, the graph renders its exposed elements and their available
   typing/connection relationships, restricted by the associated view
   definition's `viewFilters`, instead of showing the view usage as a standalone
   node.
 
-Within a graph buffer, arrow keys move to the nearest node in that direction.
+Within a graph buffer, arrow keys trace outward from the selected box and move
+to the first node hit in that direction. If no ray intersects a node, they
+move to the nearest node in that half-plane.
 Use `]n` / `[n` to move through nodes in layout order and `]e` / `[e` to move
 through edges. With mouse support enabled (`mouse=a`), hovering over a node or
 rendered edge selects it in Neovim; in Vim, click to select because Vim does
