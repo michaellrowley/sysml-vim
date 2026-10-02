@@ -769,6 +769,47 @@ def test_interconnection_view_uses_parts_ports_and_interface_edges():
     assert "tailport=\"feature0\"" in dot
     assert "headport=\"feature0\"" in dot
 
+    long_label = "a_connector_annotation_that_is_longer_than_the_viewport"
+    long_label_view = {
+        **view,
+        "edges": [
+            {
+                **edge,
+                "label": long_label,
+            }
+            if edge["relation"] == "connect"
+            else edge
+            for edge in view["edges"]
+        ],
+    }
+    narrow = render_graph_data(
+        long_label_view,
+        focus="bleTraceView",
+        depth=5,
+        max_width=35,
+    )
+    assert narrow["layout"]["width"] > 35
+    long_connection = next(
+        edge
+        for edge in narrow["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+    narrow_lines = narrow["graph"].splitlines()
+    annotation_line_number = next(
+        line_number
+        for line_number, line in enumerate(narrow_lines, 1)
+        if long_label in line
+    )
+    annotation_line = narrow_lines[annotation_line_number - 1]
+    annotation_column = (
+        _display_width(annotation_line[: annotation_line.index(long_label)]) + 1
+    )
+    assert all(
+        [annotation_line_number, annotation_column + offset]
+        in long_connection["route_cells"]
+        for offset in range(_display_width(long_label))
+    )
+
 
 def test_interconnection_view_marks_projected_item_flows_on_edges():
     index = _standard_view_index("InterconnectionView")
@@ -846,9 +887,9 @@ def test_interconnection_view_marks_projected_item_flows_on_edges():
         view,
         focus="bleTraceView",
         depth=5,
-        max_width=80,
+        max_width=30,
     )
-    assert narrow["layout"]["width"] <= 80
+    assert narrow["layout"]["width"] > 30
     narrow_edge = next(
         edge
         for edge in narrow["layout"]["edges"]

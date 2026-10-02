@@ -177,3 +177,45 @@ def test_unconnected_definitions_pack_into_rows():
                 or node["right"] < other["left"]
                 or other["right"] < node["left"]
             )
+
+
+def test_interconnection_annotations_overflow_for_same_rank_edges():
+    long_label = "connector_annotation_that_exceeds_the_viewport_width"
+    view = {
+        "type": "composition",
+        "presentation": "interconnection",
+        "nodes": [
+            _symbol("Source", "part_usage", 1),
+            _symbol("Branch", "part_usage", 2),
+            _symbol("Target", "part_usage", 3),
+        ],
+        "edges": [
+            {**_edge("Source", "Branch", "connect", 1), "label": "first"},
+            {**_edge("Source", "Target", "connect", 2), "label": "second"},
+            {**_edge("Branch", "Target", "connect", 3), "label": long_label},
+        ],
+    }
+
+    rendered = render_graph_data(view, max_width=24)
+
+    assert rendered["layout"]["width"] > 24
+    edge = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["source"] == "Branch" and edge["target"] == "Target"
+    )
+    assert edge["annotation"] == long_label
+    graph_lines = rendered["graph"].splitlines()
+    annotation_line_number = next(
+        line_number
+        for line_number, line in enumerate(graph_lines, 1)
+        if long_label in line
+    )
+    annotation_line = graph_lines[annotation_line_number - 1]
+    annotation_column = (
+        _display_width(annotation_line[: annotation_line.index(long_label)]) + 1
+    )
+    assert all(
+        [annotation_line_number, annotation_column + offset] in edge["route_cells"]
+        for offset in range(_display_width(long_label))
+    )

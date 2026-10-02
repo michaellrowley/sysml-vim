@@ -76,7 +76,10 @@ Vim command:
   resizes. Every graph window disables Vim's line wrapping to preserve box
   alignment; use horizontal scrolling (`zh` / `zl`) for any remaining overflow.
   Relationship labels are listed below the diagram; interconnection labels are
-  also drawn on their routes when space permits. When `focus` names a
+  also drawn on their routes. The layout expands beyond the requested width
+  when necessary to fit annotations, so horizontal scrolling may be needed.
+  If a route has no clear horizontal run, its annotation is attached on an
+  overflow spur outside the nodes. When `focus` names a
   SysML view usage, the graph renders its exposed elements and their available
   typing/connection relationships, restricted by the associated view
   definition's `viewFilters`, instead of showing the view usage as a standalone

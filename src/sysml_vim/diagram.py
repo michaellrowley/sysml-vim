@@ -829,8 +829,9 @@ def _position_nodes(
         target_rank = node_by_id[edge.target].rank
         if target_rank == source_rank + 1:
             edge_counts[(source_rank, target_rank)] += 1
-            if edge.route_label:
-                route_label_widths[(source_rank, target_rank)].append(
+        if edge.route_label and source_rank != target_rank:
+            for rank in range(min(source_rank, target_rank), max(source_rank, target_rank)):
+                route_label_widths[(rank, rank + 1)].append(
                     _display_width(edge.route_label)
                 )
 
@@ -853,14 +854,6 @@ def _position_nodes(
                 base_gap,
                 sum(label_widths) + count + 1 if label_widths else base_gap,
             )
-        if max_width is not None:
-            required_width = (
-                4
-                + sum(rank_width.get(rank, 0) for rank in range(max_rank + 1))
-                + sum(annotated_gaps.values())
-            )
-            if required_width > max_width:
-                annotated_gaps = base_gaps
         for rank in range(max_rank + 1):
             x_positions[rank] = x
             x += rank_width.get(rank, 0)
@@ -1184,6 +1177,107 @@ def _route_annotation_positions(
             if edge.id in annotations:
                 break
     return annotations
+
+
+def _ensure_route_annotations(
+    nodes: list[DiagramNode],
+    edges: list[DiagramEdge],
+    width: int,
+    height: int,
+) -> tuple[dict[str, tuple[int, int, str]], int, int]:
+    annotations = _route_annotation_positions(edges)
+    missing_edges = [
+        edge
+        for edge in edges
+        if edge.route_label and edge.id not in annotations
+    ]
+    if not missing_edges:
+        return annotations, width, height
+
+    node_bottom = max(
+        (node.y + node.height for node in nodes),
+        default=0,
+    )
+    node_right = max(
+        (node.x + node.width for node in nodes),
+        default=0,
+    )
+    label_x = node_right + 3
+    annotation_y = height + 1
+    node_columns = [
+        (node.x, node.x + node.width)
+        for node in nodes
+    ]
+
+    for index, edge in enumerate(missing_edges):
+        route_by_point = {
+            (x, y): glyph
+            for x, y, glyph in edge.route
+        }
+        safe_route_points = [
+            (x, y, glyph)
+            for (x, y), glyph in route_by_point.items()
+            if _GLYPH_ROUTES.get(glyph)
+            and (
+                y >= node_bottom
+                or all(not (left <= x < right) for left, right in node_columns)
+            )
+        ]
+        if not safe_route_points:
+            raise RuntimeError(
+                f"cannot place route annotation for edge {edge.id!r}"
+            )
+
+        anchor_x, anchor_y, _ = max(
+            safe_route_points,
+            key=lambda point: (
+                point[1] >= node_bottom,
+                bool({"E", "W"} & _GLYPH_ROUTES.get(point[2], frozenset())),
+                point[1],
+                point[0],
+            ),
+        )
+        label_y = annotation_y + index * 2
+        if label_y <= anchor_y:
+            label_y = anchor_y + 1
+
+        def add_directions(
+            point: tuple[int, int],
+            directions: set[str],
+        ) -> None:
+            current = route_by_point.get(point, "")
+            current_directions = _GLYPH_ROUTES.get(
+                current,
+                frozenset(),
+            )
+            route_by_point[point] = _ROUTE_GLYPHS.get(
+                current_directions | directions,
+                "─",
+            )
+
+        if label_y > anchor_y:
+            add_directions((anchor_x, anchor_y), {"S"})
+            for row in range(anchor_y + 1, label_y):
+                route_by_point[(anchor_x, row)] = "│"
+            add_directions((anchor_x, label_y), {"N", "E"})
+        else:
+            add_directions((anchor_x, anchor_y), {"E"})
+
+        label_end = label_x + _display_width(edge.route_label) - 1
+        for column in range(anchor_x + 1, label_end + 1):
+            route_by_point[(column, label_y)] = "─"
+        edge.route = [
+            (x, y, glyph)
+            for (x, y), glyph in sorted(
+                route_by_point.items(),
+                key=lambda item: (item[0][1], item[0][0]),
+            )
+        ]
+        annotations[edge.id] = (label_x, label_y, edge.route_label)
+        width = max(width, label_end + 2)
+        height = max(height, label_y + 2)
+
+    return annotations, width, height
 
 
 def _diagram_edge_label(edge: DiagramEdge) -> str:
@@ -2420,6 +2514,12 @@ def render_graph_data(
         *_wrap(legend, header_width),
         "",
     ]
+    route_annotations, layout.width, layout.height = _ensure_route_annotations(
+        layout.nodes,
+        layout.edges,
+        layout.width,
+        layout.height,
+    )
     canvas_start_line = len(header_lines) + 1
     canvas = [[" " for _ in range(layout.width)] for _ in range(layout.height)]
 
@@ -2432,7 +2532,6 @@ def render_graph_data(
             (x, y, glyph_map.get(character, character))
             for x, y, character in edge.route
         ]
-    route_annotations = _route_annotation_positions(layout.edges)
     _mark_flow_routes(
         [
             edge
