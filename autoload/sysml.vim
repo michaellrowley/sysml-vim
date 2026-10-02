@@ -798,13 +798,43 @@ function! sysml#_refresh_graph_highlights() abort
   call s:graph_highlight_selection()
 endfunction
 
-function! s:graph_set_cursor(line_number, column) abort
-  if line('.') == a:line_number && col('.') == a:column
-    return
+function! s:graph_reveal_cursor() abort
+  if foldclosed(line('.')) >= 0
+    normal! zv
   endif
+
+  let view = winsaveview()
+  let cursor_line = line('.')
+  let cursor_column = virtcol('.') - 1
+  let window_width = max([1, winwidth(0)])
+  let window_height = max([1, winheight(0)])
+  let left_column = get(view, 'leftcol', 0)
+  let top_line = line('w0')
+  let bottom_line = line('w$')
+
+  " CursorMoved may select an unchanged position after the graph was scrolled away.
+  if !&l:wrap
+        \ && (cursor_column < left_column
+        \ || cursor_column >= left_column + window_width)
+    let view.leftcol = max([0, cursor_column - (window_width - 1) / 2])
+  endif
+  if cursor_line < top_line || cursor_line > bottom_line
+    let view.topline = max([1, cursor_line - (window_height - 1) / 2])
+  endif
+  call winrestview(view)
+endfunction
+
+function! sysml#_graph_reveal_cursor() abort
+  if get(b:, 'sysml_view_method', '') ==# 'view_graph'
+    call s:graph_reveal_cursor()
+  endif
+endfunction
+
+function! s:graph_set_cursor(line_number, column) abort
   let b:sysml_graph_syncing = 1
   try
     call cursor(a:line_number, a:column)
+    call s:graph_reveal_cursor()
   finally
     let b:sysml_graph_syncing = 0
   endtry
@@ -1040,11 +1070,16 @@ function! s:reflow_graph_buffer(buffer_number) abort
           for window_id in window_ids
             call win_execute(
                   \ window_id,
-                  \ printf('call cursor(%d, %d)', node.line, node.col)
+                  \ printf(
+                  \   'call cursor(%d, %d) | call sysml#_graph_reveal_cursor()',
+                  \   node.line,
+                  \   node.col
+                  \ )
                   \ )
           endfor
         elseif bufnr('%') == a:buffer_number
           call cursor(node.line, node.col)
+          call s:graph_reveal_cursor()
         endif
         break
       endif
@@ -1411,24 +1446,30 @@ function! sysml#graph_navigate(kind, direction) abort
   endif
 
   let current = [line('.'), col('.')]
+  let target = []
   if a:direction > 0
     for position in positions
       if position[0] > current[0] || (position[0] == current[0] && position[1] > current[1])
-        call cursor(position[0], position[1])
-        return
+        let target = position
+        break
       endif
     endfor
-    let target = positions[0]
+    if empty(target)
+      let target = positions[0]
+    endif
   else
     for position in reverse(copy(positions))
       if position[0] < current[0] || (position[0] == current[0] && position[1] < current[1])
-        call cursor(position[0], position[1])
-        return
+        let target = position
+        break
       endif
     endfor
-    let target = positions[-1]
+    if empty(target)
+      let target = positions[-1]
+    endif
   endif
   call cursor(target[0], target[1])
+  call s:graph_reveal_cursor()
 endfunction
 
 function! sysml#_schedule_view_refresh(source_buffer) abort

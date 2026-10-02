@@ -447,5 +447,75 @@ if foldclosed(s:browser_leaf_line) >= 0
   cquit 40
 endif
 
+tabnew
+setlocal buftype=nofile bufhidden=wipe noswapfile nowrap
+let b:sysml_view_method = 'view_graph'
+let b:sysml_graph_layout = {
+      \ 'nodes': [
+      \   {
+      \     'id': 'viewport-source',
+      \     'name': 'Source',
+      \     'top': 1,
+      \     'bottom': 3,
+      \     'left': 1,
+      \     'right': 16,
+      \     'line': 2,
+      \     'col': 5
+      \   },
+      \   {
+      \     'id': 'viewport-target',
+      \     'name': 'Target',
+      \     'top': 29,
+      \     'bottom': 31,
+      \     'left': 181,
+      \     'right': 196,
+      \     'line': 30,
+      \     'col': 185
+      \   }
+      \ ],
+      \ 'edges': []
+      \ }
+let s:viewport_lines = repeat([''], 40)
+let s:viewport_lines[1] = '│ Source: part │'
+let s:viewport_lines[29] = repeat(' ', 180) . '│ Target: part │'
+let s:viewport_lines[37] = 'Edges:'
+let s:viewport_lines[38] = '- Source -[flow]-> Target'
+call setline(1, s:viewport_lines)
+call cursor(2, 5)
+let b:sysml_graph_selection = {
+      \ 'kind': 'node',
+      \ 'id': 'viewport-source',
+      \ 'name': 'Source'
+      \ }
+call sysml#graph_move('right')
+if get(get(b:, 'sysml_graph_selection', {}), 'name', '') !=# 'Target'
+  cquit 46
+endif
+let s:offscreen_view = winsaveview()
+let s:offscreen_view.topline = 1
+let s:offscreen_view.leftcol = 0
+call winrestview(s:offscreen_view)
+call sysml#graph_mouse_sync()
+let s:revealed_view = winsaveview()
+if line('.') < line('w0') || line('.') > line('w$')
+      \ || virtcol('.') - 1 < s:revealed_view.leftcol
+      \ || virtcol('.') - 1 >= s:revealed_view.leftcol + winwidth(0)
+  cquit 47
+endif
+
+call cursor(39, 3)
+let s:offscreen_view = winsaveview()
+let s:offscreen_view.topline = 1
+let s:offscreen_view.leftcol = 150
+call winrestview(s:offscreen_view)
+call sysml#graph_navigate('edge', 1)
+let s:revealed_view = winsaveview()
+if line('.') != 39 || col('.') != 3
+      \ || line('.') < line('w0') || line('.') > line('w$')
+      \ || virtcol('.') - 1 < s:revealed_view.leftcol
+      \ || virtcol('.') - 1 >= s:revealed_view.leftcol + winwidth(0)
+  cquit 48
+endif
+
 call delete(s:workspace_b, 'rf')
 quitall!

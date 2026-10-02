@@ -75,6 +75,8 @@ Vim command:
   Graph layouts reflow to the narrowest window displaying them after splits or
   resizes. Every graph window disables Vim's line wrapping to preserve box
   alignment; use horizontal scrolling (`zh` / `zl`) for any remaining overflow.
+  Keyboard navigation scrolls an off-screen selected node or edge entry into
+  view in both axes.
   Relationship labels are listed below the diagram; interconnection labels are
   also drawn on their routes. The layout expands beyond the requested width
   when necessary to fit annotations, so horizontal scrolling may be needed.

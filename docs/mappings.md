@@ -22,10 +22,12 @@ Defaults (only if unbound): `gd`, `gr`, `K`.
 
 In `:v2 graph` buffers, `]n` / `[n` move to the next / previous node, and
 `]e` / `[e` move to the next / previous edge and highlight its route and edge
-entry. Press `<CR>` on a selected node or edge to open its projected details
-in a read-only tab; interface edges include connected part/port trees and
-projected flows or bindings. The graph-only defaults respect existing mappings
-and can be replaced using the corresponding `<Plug>` maps.
+entry. Keyboard selection and arrow navigation scroll an off-screen selection
+into view horizontally and vertically. Press `<CR>` on a selected node or edge
+to open its projected details in a read-only tab; interface edges include
+connected part/port trees and projected flows or bindings. The graph-only
+defaults respect existing mappings and can be replaced using the corresponding
+`<Plug>` maps.
 BrowserView graph buffers use Vim's indent folds for hierarchy branches; use
 `zc` / `zo` to close/open a branch and `zM` / `zR` to close/open all branches.
 Arrow keys trace outward from the selected box and move to the first node hit
