@@ -103,7 +103,7 @@ def test_structural_diagram_uses_feature_compartments_and_typed_routes():
     }
 
 
-def test_graph_focus_includes_containing_element_and_outer_routes_avoid_boxes():
+def test_graph_focus_routes_reverse_adjacent_edges_without_crossing_boxes():
     view = {
         "type": "composition",
         "nodes": [
@@ -116,7 +116,7 @@ def test_graph_focus_includes_containing_element_and_outer_routes_avoid_boxes():
         ],
     }
     result = render_graph_data(view)
-    assert "▲" in result["graph"]
+    assert "◀" in result["graph"]
     nodes = {node["name"]: node for node in result["layout"]["nodes"]}
     assert set(nodes) == {"K", "Z"}
     assert any(edge["relation"] == "dependency" for edge in result["layout"]["edges"])
@@ -198,6 +198,12 @@ def test_interconnection_annotations_overflow_for_same_rank_edges():
 
     rendered = render_graph_data(view, max_width=24)
 
+    nodes = {node["name"]: node for node in rendered["layout"]["nodes"]}
+    assert (
+        nodes["Branch"]["left"] - nodes["Source"]["right"] - 1
+        <= max(_display_width("first"), _display_width("second")) + 4
+    )
+    assert rendered["layout"]["height"] < 20
     assert rendered["layout"]["width"] > 24
     edge = next(
         edge
@@ -219,3 +225,67 @@ def test_interconnection_annotations_overflow_for_same_rank_edges():
         [annotation_line_number, annotation_column + offset] in edge["route_cells"]
         for offset in range(_display_width(long_label))
     )
+
+
+def test_same_rank_interconnection_routes_between_top_and_bottom_ports():
+    view = {
+        "type": "composition",
+        "presentation": "interconnection",
+        "nodes": [
+            _symbol("Root", "part_usage", 1),
+            _symbol("Branch", "part_usage", 2),
+            _symbol("Target", "part_usage", 3),
+            _symbol(
+                "branchOut",
+                "port_usage",
+                4,
+                container="Branch",
+                ancestors=("Root", "Branch"),
+            ),
+            _symbol(
+                "targetIn",
+                "port_usage",
+                5,
+                container="Target",
+                ancestors=("Root", "Target"),
+            ),
+        ],
+        "edges": [
+            _edge("Root", "Branch", "connect", 1),
+            _edge("Root", "Target", "connect", 2),
+            {
+                **_edge("Branch", "Target", "connect", 3),
+                "label": "BranchTarget",
+                "source_feature": "branchOut",
+                "target_feature": "targetIn",
+            },
+        ],
+    }
+
+    rendered = render_graph_data(view)
+    nodes = {node["name"]: node for node in rendered["layout"]["nodes"]}
+    ports = {
+        port["name"]: port
+        for node in nodes.values()
+        for port in node["ports"]
+    }
+    edge = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["source"] == "branchOut"
+    )
+    route_cells = {tuple(cell) for cell in edge["route_cells"]}
+
+    assert ports["branchOut"]["side"] == "bottom"
+    assert ports["targetIn"]["side"] == "top"
+    assert (
+        ports["branchOut"]["line"] + 1,
+        ports["branchOut"]["display_col"],
+    ) in route_cells
+    target_arrow = (
+        ports["targetIn"]["line"] - 1,
+        ports["targetIn"]["display_col"],
+    )
+    assert target_arrow in route_cells
+    graph_lines = rendered["graph"].splitlines()
+    assert graph_lines[target_arrow[0] - 1][target_arrow[1] - 1] == "▼"

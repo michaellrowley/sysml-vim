@@ -1180,9 +1180,55 @@ def test_interconnection_view_maps_interface_definition_flows_to_connections():
     assert "◆ Payload" in rendered["graph"]
     assert "◆ Status" in rendered["graph"]
     assert "◆ Response" in rendered["graph"]
+    ports = {
+        port["name"]: port
+        for node in nodes.values()
+        for port in node["ports"]
+    }
+    assert ports["outlet"]["side"] == "right"
+    assert ports["inlet"]["side"] == "left"
+    assert all(
+        len(
+            [
+                port
+                for port in node["ports"]
+                if port["name"] in {"outlet", "inlet"}
+            ]
+        )
+        == 1
+        for node in nodes.values()
+    )
+    annotation_width = max(
+        _display_width(edge["annotation"])
+        for edge in [connection, *flow_edges]
+    )
+    assert (
+        nodes["Beta"]["left"] - nodes["Alpha"]["right"] - 1
+        <= annotation_width + 4
+    )
     diagram_lines = rendered["graph"].splitlines()[
         : rendered["layout"]["edge_header_line"] - 1
     ]
+    for edge in [connection, *flow_edges]:
+        route_cells = {tuple(cell) for cell in edge["route_cells"]}
+        source_port = ports[edge["source_feature"]]
+        target_port = ports[edge["target_feature"]]
+        source_column = source_port["display_col"] + (
+            1 if source_port["side"] == "right" else -1
+        )
+        target_column = target_port["display_col"] + (
+            1 if target_port["side"] == "right" else -1
+        )
+        assert (source_port["line"], source_column) in route_cells
+        assert (target_port["line"], target_column) in route_cells
+        target_arrow = (
+            "▶" if target_port["side"] == "left" else "◀"
+        )
+        assert (
+            diagram_lines[target_port["line"] - 1][target_column - 1]
+            == target_arrow
+        )
+
     annotation_spans: dict[int, list[tuple[int, int]]] = {}
     for annotation in [
         connection["annotation"],

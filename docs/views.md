@@ -36,7 +36,7 @@ sysml-vim renders their documented intent as follows:
 | Standard view definition | Presentation |
 | --- | --- |
 | `GeneralView` | General node-and-edge graph of exposed model elements and available relationships. |
-| `InterconnectionView` | Part usages are nodes; nested part usages and projected features found through their part-type chain are grouped with their owners. Port features are marked with dots on the node border and anchor projected connection edges when their ownership and endpoints are available. Flow usages declared by an interface definition are mapped onto visible usages typed by that definition when exactly two end ports are projected. sysml-vim maps the first and second declared ends to the connection's first and second endpoints to preserve flow direction, and `itemType` labels each route. Direct flow usages connect their projected endpoint parts/features. Connector or interface usages label connection edges. Unowned interface-end features are omitted rather than shown as peer parts. Definition-only nodes are omitted. |
+| `InterconnectionView` | Part usages are nodes; nested part usages and projected features found through their part-type chain are grouped with their owners. Port features are marked with dots on facing node borders and anchor projected connection edges when their ownership and endpoints are available. Port sides follow node placement, so reverse flows return through the same markers. Flow usages declared by an interface definition are mapped onto visible usages typed by that definition when exactly two end ports are projected. sysml-vim maps the first and second declared ends to the connection's first and second endpoints to preserve flow direction, and `itemType` labels each route. Direct flow usages connect their projected endpoint parts/features. Connector or interface usages label connection edges. Unowned interface-end features are omitted rather than shown as peer parts. Definition-only nodes are omitted. |
 | `ActionFlowView` | Actions and control nodes are promoted to nodes; parts can provide context, parameters are shown with direction when projected, and flow, binding, and succession relationships are edges. |
 | `StateTransitionView` | State usages are nodes, nested states remain visible, and projected transitions are routed between states, including self-transitions. Actions owned by states remain state features. |
 | `SequenceView` | Exposed participant features form horizontal lifelines; projected event/action usages and messages are placed top-to-bottom by source location. The source order is a presentation order, not simulated execution time. |
@@ -80,22 +80,25 @@ Vim command:
   Relationship labels are listed below the diagram; interconnection labels are
   also drawn on their routes. The layout expands beyond the requested width
   when necessary to fit annotations, so horizontal scrolling may be needed.
-  If a route has no clear horizontal run, its annotation is attached on an
-  overflow spur outside the nodes. When `focus` names a
-  SysML view usage, the graph renders its exposed elements and their available
-  typing/connection relationships, restricted by the associated view
-  definition's `viewFilters`, instead of showing the view usage as a standalone
-  node. Package wildcard exposures such as `Package::**` expand recursively
-  within the resolved package scope. Named interface connection usages are
-  rendered as labeled edges when declared with `connect`, including typed
-  interface usages. For `InterconnectionView`, dots on part-node borders mark
-  projected ports and connection routes meet those dots. Projected item-flow
-  relationships use projected `flowSource`/`flowTarget` paths and the
-  `itemType` as a `◆` route marker when available. For interface-typed flows,
-  the graph maps the definition's first and second end ports to a visible
-  connection usage's first and second endpoints. This is projection-based
-  presentation behavior, not a claim of complete SysML semantics. DOT/SVG
-  output uses record fields to anchor edges to projected feature rows.
+  Parallel labels use separate route lanes, and adjacent node gaps are sized
+  for the widest label rather than the sum of all labels. Same-rank nodes route
+  through their facing top/bottom borders. If a route has no clear horizontal
+  run, its annotation is placed near a clear route segment. When `focus` names
+  a SysML view usage, the graph renders its exposed elements and their
+  available typing/connection relationships, restricted by the associated
+  view definition's `viewFilters`, instead of showing the view usage as a
+  standalone node. Package wildcard exposures such as `Package::**` expand
+  recursively within the resolved package scope. Named interface connection
+  usages are rendered as labeled edges when declared with `connect`, including
+  typed interface usages. For `InterconnectionView`, dots on part-node borders
+  mark projected ports and connection routes meet those dots. Projected
+  item-flow relationships use projected `flowSource`/`flowTarget` paths and
+  the `itemType` as a `◆` route marker when available. For interface-typed
+  flows, the graph maps the definition's first and second end ports to a
+  visible connection usage's first and second endpoints. This is
+  projection-based presentation behavior, not a claim of complete SysML
+  semantics. DOT/SVG output uses record fields to anchor edges to projected
+  feature rows.
 
 Within a graph buffer, arrow keys trace outward from the selected box and move
 to the first node hit in that direction. If no ray intersects a node, they

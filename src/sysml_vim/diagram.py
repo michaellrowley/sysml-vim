@@ -74,6 +74,12 @@ _ROUTE_GLYPHS = {
 }
 _GLYPH_ROUTES = {glyph: directions for directions, glyph in _ROUTE_GLYPHS.items()}
 _GLYPH_ROUTES.update({"┄": frozenset({"E", "W"}), "┆": frozenset({"N", "S"})})
+_SIDE_ARROW_GLYPHS = {
+    "left": "▶",
+    "right": "◀",
+    "top": "▼",
+    "bottom": "▲",
+}
 
 
 @dataclass(slots=True)
@@ -707,16 +713,93 @@ def _mark_interconnection_ports(
         for node in nodes
         for feature in node.features
     }
+    nodes_by_id = {node.id: node for node in nodes}
     for edge in edges:
+        source_side, target_side = _edge_node_sides(
+            nodes_by_id[edge.source],
+            nodes_by_id[edge.target],
+        )
         source_feature = features_by_id.get(edge.source_feature or "")
         if source_feature and source_feature.kind.lower() == "port_usage":
-            source_feature.port_sides.add("right")
+            source_feature.port_sides.add(source_side)
         target_feature = features_by_id.get(edge.target_feature or "")
         if target_feature and target_feature.kind.lower() == "port_usage":
-            target_feature.port_sides.add("left")
+            target_feature.port_sides.add(target_side)
     for feature in features_by_id.values():
         if feature.kind.lower() == "port_usage" and not feature.port_sides:
             feature.port_sides.add("right")
+
+
+def _edge_node_sides(
+    source: DiagramNode,
+    target: DiagramNode,
+) -> tuple[str, str]:
+    # Physical node order keeps reverse flows on the same pair of port sides.
+    if source.x < target.x:
+        return "right", "left"
+    if source.x > target.x:
+        return "left", "right"
+    if source.y < target.y:
+        return "bottom", "top"
+    if source.y > target.y:
+        return "top", "bottom"
+    return "right", "left"
+
+
+def _port_marker_positions(
+    node: DiagramNode,
+) -> dict[tuple[str, str], tuple[int, int]]:
+    port_features = [
+        feature
+        for feature in node.features
+        if feature.kind.lower() == "port_usage"
+    ]
+    positions: dict[tuple[str, str], tuple[int, int]] = {}
+    for feature in port_features:
+        for side in ("left", "right"):
+            if side in feature.port_sides:
+                positions[(feature.id, side)] = (
+                    node.x if side == "left" else node.x + node.width - 1,
+                    node.y + feature.line_index,
+                )
+    for side in ("top", "bottom"):
+        side_features = sorted(
+            (feature for feature in port_features if side in feature.port_sides),
+            key=lambda feature: (feature.line_index, feature.name.casefold()),
+        )
+        interior_width = max(1, node.width - 2)
+        for index, feature in enumerate(side_features):
+            x = node.x + 1 + ((index + 1) * interior_width) // (
+                len(side_features) + 1
+            )
+            y = node.y if side == "top" else node.y + node.height - 1
+            positions[(feature.id, side)] = (x, y)
+    return positions
+
+
+def _node_edge_point(
+    node: DiagramNode,
+    feature: DiagramFeature | None,
+    side: str,
+) -> tuple[int, int]:
+    marker = (
+        _port_marker_positions(node).get((feature.id, side))
+        if feature and feature.kind.lower() == "port_usage"
+        else None
+    )
+    if side in {"left", "right"}:
+        if marker:
+            row = marker[1]
+        elif feature:
+            row = node.y + feature.line_index
+        else:
+            row = node.y + 1 + len(node.kind_lines)
+        column = node.x - 1 if side == "left" else node.x + node.width
+        return column, row
+
+    column = marker[0] if marker else node.x + node.width // 2
+    row = node.y - 1 if side == "top" else node.y + node.height
+    return column, row
 
 
 def _assign_ranks(nodes: list[DiagramNode], edges: list[DiagramEdge]) -> None:
@@ -858,19 +941,20 @@ def _position_nodes(
     for edge in edges:
         source_rank = node_by_id[edge.source].rank
         target_rank = node_by_id[edge.target].rank
-        if target_rank == source_rank + 1:
-            edge_counts[(source_rank, target_rank)] += 1
-        if edge.route_label and source_rank != target_rank:
-            for rank in range(min(source_rank, target_rank), max(source_rank, target_rank)):
-                route_label_widths[(rank, rank + 1)].append(
-                    _display_width(edge.route_label)
-                )
+        if abs(target_rank - source_rank) != 1:
+            continue
+        rank_pair = (
+            min(source_rank, target_rank),
+            max(source_rank, target_rank),
+        )
+        edge_counts[rank_pair] += 1
+        if edge.route_label:
+            route_label_widths[rank_pair].append(_display_width(edge.route_label))
 
     x_positions: dict[int, int] = {}
     x = 2
     if layers:
         max_rank = max(layers)
-        base_gaps = {}
         annotated_gaps = {}
         for rank in range(max_rank):
             count = edge_counts.get((rank, rank + 1), 0)
@@ -879,11 +963,10 @@ def _position_nodes(
                 if max_width is None
                 else count + 2
             )
-            base_gaps[rank] = base_gap
             label_widths = route_label_widths.get((rank, rank + 1), [])
             annotated_gaps[rank] = max(
                 base_gap,
-                sum(label_widths) + count + 1 if label_widths else base_gap,
+                max(label_widths) + 4 if label_widths else base_gap,
             )
         for rank in range(max_rank + 1):
             x_positions[rank] = x
@@ -905,7 +988,7 @@ def _position_nodes(
     outer_edge_count = sum(
         1
         for edge in edges
-        if node_by_id[edge.target].rank != node_by_id[edge.source].rank + 1
+        if abs(node_by_id[edge.target].rank - node_by_id[edge.source].rank) > 1
     )
     isolated_y = (
         component_bottom + outer_edge_count * 2 + 2
@@ -956,7 +1039,9 @@ def _add_route(
     end: tuple[int, int],
     *,
     lane: int | None = None,
+    lane_y: int | None = None,
     outer_y: int | None = None,
+    arrow: str = "▶",
 ) -> None:
     connections: dict[tuple[int, int], set[str]] = defaultdict(set)
 
@@ -978,19 +1063,35 @@ def _add_route(
             if y < end_y:
                 connections[(x, y)].add("S")
 
-    if lane is not None:
-        horizontal(start[1], start[0], lane)
-        vertical(lane, start[1], end[1])
-        arrow_x = end[0] - 1
-        horizontal(end[1], lane, arrow_x)
-        connections.pop((arrow_x, end[1]), None)
+    if lane_y is not None:
+        direction = 1 if end[0] > start[0] else -1
+        departure_x = start[0] + direction
+        approach_x = end[0] - direction
+        horizontal(start[1], start[0], departure_x)
+        vertical(departure_x, start[1], lane_y)
+        horizontal(lane_y, departure_x, approach_x)
+        vertical(approach_x, lane_y, end[1])
+        horizontal(end[1], approach_x, end[0])
+        connections.pop(end, None)
         edge.route = [
             (x, y, _ROUTE_GLYPHS.get(frozenset(directions), "─"))
             for (x, y), directions in sorted(
                 connections.items(), key=lambda item: (item[0][1], item[0][0])
             )
         ]
-        edge.route.append((arrow_x, end[1], "▶"))
+        edge.route.append((end[0], end[1], arrow))
+    elif lane is not None:
+        horizontal(start[1], start[0], lane)
+        vertical(lane, start[1], end[1])
+        horizontal(end[1], lane, end[0])
+        connections.pop(end, None)
+        edge.route = [
+            (x, y, _ROUTE_GLYPHS.get(frozenset(directions), "─"))
+            for (x, y), directions in sorted(
+                connections.items(), key=lambda item: (item[0][1], item[0][0])
+            )
+        ]
+        edge.route.append((end[0], end[1], arrow))
     elif outer_y is not None:
         vertical(start[0], start[1], outer_y)
         horizontal(min(start[0], end[0]), outer_y, max(start[0], end[0]))
@@ -1002,7 +1103,7 @@ def _add_route(
                 connections.items(), key=lambda item: (item[0][1], item[0][0])
             )
         ]
-        edge.route.append((end[0], end[1], "▲"))
+        edge.route.append((end[0], end[1], arrow))
 
 
 def _route_edges(
@@ -1015,7 +1116,8 @@ def _route_edges(
         for node in nodes
         for feature in node.features
     }
-    forward: dict[tuple[int, int], list[DiagramEdge]] = defaultdict(list)
+    adjacent: dict[tuple[int, int], list[DiagramEdge]] = defaultdict(list)
+    same_rank: list[DiagramEdge] = []
     other: list[DiagramEdge] = []
     self_loop_indices: dict[str, int] = defaultdict(int)
     for edge in edges:
@@ -1057,40 +1159,115 @@ def _route_edges(
             continue
         source = node_by_id[edge.source]
         target = node_by_id[edge.target]
-        if target.rank == source.rank + 1:
-            forward[(source.rank, target.rank)].append(edge)
+        if abs(target.rank - source.rank) == 1:
+            rank_pair = (min(source.rank, target.rank), max(source.rank, target.rank))
+            adjacent[rank_pair].append(edge)
+        elif target.rank == source.rank:
+            same_rank.append(edge)
         else:
             other.append(edge)
 
-    for rank_pair, rank_edges in forward.items():
-        source_rank, _ = rank_pair
+    for rank_edges in adjacent.values():
         rank_edges.sort(
             key=lambda edge: (
+                min(
+                    node_by_id[edge.source].x,
+                    node_by_id[edge.target].x,
+                ),
                 node_by_id[edge.source].y,
                 node_by_id[edge.target].y,
                 edge.relation,
                 edge.source_display.casefold(),
             )
         )
-        for lane_index, edge in enumerate(rank_edges):
+        endpoint_rows = set()
+        edge_rows = {}
+        for edge in rank_edges:
             source = node_by_id[edge.source]
             target = node_by_id[edge.target]
             feature_anchor = source_feature_by_id.get(edge.source_feature or "")
             target_feature_anchor = source_feature_by_id.get(edge.target_feature or "")
-            source_row = (
-                source.y + feature_anchor[1].line_index
-                if feature_anchor
-                else source.y + 1 + len(source.kind_lines)
+            source_side, target_side = _edge_node_sides(source, target)
+            start = _node_edge_point(
+                source,
+                feature_anchor[1] if feature_anchor else None,
+                source_side,
             )
-            target_row = (
-                target.y + target_feature_anchor[1].line_index
-                if target_feature_anchor
-                else target.y + 1 + len(target.kind_lines)
+            end = _node_edge_point(
+                target,
+                target_feature_anchor[1] if target_feature_anchor else None,
+                target_side,
             )
-            start_x = source.x + source.width
-            end_x = target.x
-            lane_x = min(start_x + lane_index + 1, end_x - 2)
-            _add_route(edge, (start_x, source_row), (end_x, target_row), lane=lane_x)
+            arrow = _SIDE_ARROW_GLYPHS[target_side]
+            endpoint_rows.update((start[1], end[1]))
+            edge_rows[edge.id] = (start, end, arrow)
+
+        label_lane_rows = {}
+        next_lane_row = min(endpoint_rows, default=0)
+        for edge in rank_edges:
+            if not edge.route_label:
+                continue
+            while (
+                next_lane_row in endpoint_rows
+                or next_lane_row in label_lane_rows.values()
+            ):
+                next_lane_row += 1
+            label_lane_rows[edge.id] = next_lane_row
+            next_lane_row += 1
+
+        for lane_index, edge in enumerate(rank_edges):
+            start, end, arrow = edge_rows[edge.id]
+            if edge.route_label:
+                _add_route(
+                    edge,
+                    start,
+                    end,
+                    lane_y=label_lane_rows[edge.id],
+                    arrow=arrow,
+                )
+                continue
+            direction = 1 if end[0] > start[0] else -1
+            lane_offset = min(lane_index + 1, max(1, abs(end[0] - start[0]) - 1))
+            _add_route(
+                edge,
+                start,
+                end,
+                lane=start[0] + direction * lane_offset,
+                arrow=arrow,
+            )
+
+    same_rank.sort(
+        key=lambda edge: (
+            node_by_id[edge.source].y,
+            node_by_id[edge.target].y,
+            edge.relation,
+            edge.source_display.casefold(),
+        )
+    )
+    for edge in same_rank:
+        source = node_by_id[edge.source]
+        target = node_by_id[edge.target]
+        source_feature = source_feature_by_id.get(edge.source_feature or "")
+        target_feature = source_feature_by_id.get(edge.target_feature or "")
+        source_side, target_side = _edge_node_sides(source, target)
+        start = _node_edge_point(
+            source,
+            source_feature[1] if source_feature else None,
+            source_side,
+        )
+        end = _node_edge_point(
+            target,
+            target_feature[1] if target_feature else None,
+            target_side,
+        )
+        arrow = _SIDE_ARROW_GLYPHS[target_side]
+        _add_route(
+            edge,
+            start,
+            end,
+            lane=(start[0] + end[0]) // 2,
+            arrow=arrow,
+        )
 
     other.sort(
         key=lambda edge: (
@@ -1105,31 +1282,34 @@ def _route_edges(
         for node_id in (edge.source, edge.target)
     }
     outer_lane_y = max(
-        (node_by_id[node_id].y + node_by_id[node_id].height for node_id in linked_nodes),
+        (
+            node_by_id[node_id].y + node_by_id[node_id].height
+            for node_id in linked_nodes
+        ),
         default=0,
     ) + 1
     for index, edge in enumerate(other):
         source = node_by_id[edge.source]
         target = node_by_id[edge.target]
-        source_x = source.x + source.width // 2
-        target_x = target.x + target.width // 2
+        source_side, target_side = _edge_node_sides(source, target)
         source_feature = source_feature_by_id.get(edge.source_feature or "")
         target_feature = source_feature_by_id.get(edge.target_feature or "")
-        if source_feature:
-            source_x = source.x + source.width
-            source_y = source.y + source_feature[1].line_index
-        else:
-            source_y = source.y + source.height
-        if target_feature:
-            target_x = target.x - 1
-            target_y = target.y + target_feature[1].line_index
-        else:
-            target_y = target.y + target.height
+        start = _node_edge_point(
+            source,
+            source_feature[1] if source_feature else None,
+            source_side,
+        )
+        end = _node_edge_point(
+            target,
+            target_feature[1] if target_feature else None,
+            target_side,
+        )
         _add_route(
             edge,
-            (source_x, source_y),
-            (target_x, target_y),
+            start,
+            end,
             outer_y=outer_lane_y + index * 2,
+            arrow=_SIDE_ARROW_GLYPHS[target_side],
         )
 
 
@@ -1196,7 +1376,10 @@ def _route_annotation_positions(
             starts = range(run_start, run_end - label_width + 2)
             for start in sorted(starts, key=lambda column: abs(column - center_start)):
                 end = start + label_width - 1
-                if any((column, row) in other_routes for column in range(start, end + 1)):
+                if any(
+                    (column, row) in other_routes
+                    for column in range(start, end + 1)
+                ):
                     continue
                 # Keep annotations on shared flow routes visually distinct.
                 if any(
@@ -1219,6 +1402,14 @@ def _ensure_route_annotations(
     width: int,
     height: int,
 ) -> tuple[dict[str, tuple[int, int, str]], int, int]:
+    route_points = [
+        (x, y)
+        for edge in edges
+        for x, y, _ in edge.route
+    ]
+    if route_points:
+        width = max(width, max(x for x, _ in route_points) + 2)
+        height = max(height, max(y for _, y in route_points) + 2)
     annotations = _route_annotation_positions(edges)
     missing_edges = [
         edge
@@ -1232,18 +1423,14 @@ def _ensure_route_annotations(
         (node.y + node.height for node in nodes),
         default=0,
     )
-    node_right = max(
-        (node.x + node.width for node in nodes),
-        default=0,
-    )
-    label_x = node_right + 3
-    annotation_y = height + 1
-    node_columns = [
-        (node.x, node.x + node.width)
-        for node in nodes
-    ]
+    label_spans: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    route_cells_by_id = {
+        edge.id: {(x, y) for x, y, _ in edge.route}
+        for edge in edges
+    }
+    all_route_cells = set().union(*route_cells_by_id.values())
 
-    for index, edge in enumerate(missing_edges):
+    for edge in missing_edges:
         route_by_point = {
             (x, y): glyph
             for x, y, glyph in edge.route
@@ -1252,9 +1439,12 @@ def _ensure_route_annotations(
             (x, y, glyph)
             for (x, y), glyph in route_by_point.items()
             if _GLYPH_ROUTES.get(glyph)
-            and (
-                y >= node_bottom
-                or all(not (left <= x < right) for left, right in node_columns)
+            and all(
+                not (
+                    node.x <= x < node.x + node.width
+                    and node.y <= y < node.y + node.height
+                )
+                for node in nodes
             )
         ]
         if not safe_route_points:
@@ -1271,9 +1461,96 @@ def _ensure_route_annotations(
                 point[0],
             ),
         )
-        label_y = annotation_y + index * 2
-        if label_y <= anchor_y:
-            label_y = anchor_y + 1
+        label_width = _display_width(edge.route_label)
+        other_routes = all_route_cells - route_cells_by_id[edge.id]
+
+        def label_row_clear(row: int, start: int) -> bool:
+            end = start + label_width - 1
+            if row < 0 or any(
+                node.y <= row < node.y + node.height
+                and start <= node.x + node.width - 1
+                and end >= node.x
+                for node in nodes
+            ):
+                return False
+            if any((column, row) in other_routes for column in range(start, end + 1)):
+                return False
+            return not any(
+                start <= occupied_end + 1 and end + 1 >= occupied_start
+                for occupied_start, occupied_end in label_spans[row]
+            )
+
+        centered_x = max(0, anchor_x - label_width // 2)
+        label_starts = [
+            centered_x,
+            anchor_x + 2,
+            max(0, anchor_x - label_width - 2),
+        ]
+
+        def connector_cells(start: int, row: int) -> list[tuple[int, int]]:
+            end = start + label_width - 1
+            cells = []
+            if row != anchor_y:
+                step = 1 if row > anchor_y else -1
+                cells.extend(
+                    (anchor_x, path_row)
+                    for path_row in range(anchor_y + step, row, step)
+                )
+            if start > anchor_x:
+                cells.extend(
+                    (column, row)
+                    for column in range(anchor_x + 1, start + 1)
+                )
+            elif end < anchor_x:
+                cells.extend(
+                    (column, row)
+                    for column in range(end, anchor_x)
+                )
+            return cells
+
+        def connector_clear(start: int, row: int) -> bool:
+            return all(
+                not any(
+                    node.x <= column < node.x + node.width
+                    and node.y <= path_row < node.y + node.height
+                    for node in nodes
+                )
+                and (column, path_row) not in other_routes
+                for column, path_row in connector_cells(start, row)
+            )
+
+        candidates = sorted(
+            (
+                (row, start)
+                for row in range(max(0, height + len(missing_edges) + 2))
+                for start in label_starts
+            ),
+            key=lambda candidate: (
+                abs(candidate[0] - anchor_y),
+                abs(candidate[1] + label_width // 2 - anchor_x),
+                candidate[0],
+            ),
+        )
+        selected_position = next(
+            (
+                (row, start)
+                for row, start in candidates
+                if label_row_clear(row, start)
+                and connector_clear(start, row)
+            ),
+            None,
+        )
+        if selected_position is None:
+            label_y = max(node_bottom + 1, anchor_y + 1)
+            label_x = centered_x
+            has_connector = False
+            while not label_row_clear(label_y, label_x):
+                label_y += 1
+        else:
+            label_y, label_x = selected_position
+            has_connector = True
+        label_end = label_x + label_width - 1
+        label_spans[label_y].append((label_x, label_end))
 
         def add_directions(
             point: tuple[int, int],
@@ -1289,17 +1566,49 @@ def _ensure_route_annotations(
                 "─",
             )
 
-        if label_y > anchor_y:
+        if has_connector and label_y > anchor_y:
             add_directions((anchor_x, anchor_y), {"S"})
             for row in range(anchor_y + 1, label_y):
                 route_by_point[(anchor_x, row)] = "│"
-            add_directions((anchor_x, label_y), {"N", "E"})
-        else:
+            if label_x > anchor_x:
+                add_directions((anchor_x, label_y), {"N", "E"})
+            elif label_end < anchor_x:
+                add_directions((anchor_x, label_y), {"N", "W"})
+            else:
+                add_directions((anchor_x, label_y), {"N"})
+        elif has_connector and label_y < anchor_y:
+            add_directions((anchor_x, anchor_y), {"N"})
+            for row in range(label_y + 1, anchor_y):
+                route_by_point[(anchor_x, row)] = "│"
+            if label_x > anchor_x:
+                add_directions((anchor_x, label_y), {"S", "E"})
+            elif label_end < anchor_x:
+                add_directions((anchor_x, label_y), {"S", "W"})
+            else:
+                add_directions((anchor_x, label_y), {"S"})
+        elif has_connector and label_y == anchor_y and label_x > anchor_x:
             add_directions((anchor_x, anchor_y), {"E"})
+        elif (
+            has_connector
+            and label_y == anchor_y
+            and label_end < anchor_x
+        ):
+            add_directions((anchor_x, anchor_y), {"W"})
 
-        label_end = label_x + _display_width(edge.route_label) - 1
-        for column in range(anchor_x + 1, label_end + 1):
-            route_by_point[(column, label_y)] = "─"
+        if has_connector:
+            for column, path_row in connector_cells(label_x, label_y):
+                if path_row != label_y:
+                    route_by_point[(column, path_row)] = "│"
+                elif column != anchor_x:
+                    directions = {"W" if column > anchor_x else "E"}
+                    if column != label_x and column != label_end:
+                        directions.add("E" if column > anchor_x else "W")
+                    route_by_point[(column, path_row)] = _ROUTE_GLYPHS.get(
+                        frozenset(directions),
+                        "─",
+                    )
+        for column in range(label_x, label_end + 1):
+            route_by_point.setdefault((column, label_y), " ")
         edge.route = [
             (x, y, glyph)
             for (x, y), glyph in sorted(
@@ -1520,9 +1829,16 @@ def _put_route(canvas: list[list[str]], x: int, y: int, character: str) -> None:
     if not (0 <= y < len(canvas) and 0 <= x < len(canvas[y])):
         return
     current = canvas[y][x]
+    arrows = {"▶", "◀", "▲", "▼"}
     if current in {" ", character, ""}:
         canvas[y][x] = character
-    elif character in {"▶", "▲"}:
+    elif current in arrows:
+        if character in arrows and current != character:
+            if {current, character} == {"▶", "◀"}:
+                canvas[y][x] = "↔"
+            elif {current, character} == {"▲", "▼"}:
+                canvas[y][x] = "↕"
+    elif character in arrows:
         canvas[y][x] = character
     else:
         current_directions = _GLYPH_ROUTES.get(current, frozenset())
@@ -1592,24 +1908,22 @@ def _draw_nodes(
         for row_index, row in enumerate(rows):
             _canvas_text(canvas, node.x, node.y + row_index, row)
         ports = []
+        marker_positions = _port_marker_positions(node)
         for feature in node.features:
             if feature.kind.lower() != "port_usage":
                 continue
-            feature_row_index = node.y + feature.line_index
             for side in sorted(feature.port_sides):
-                marker_column = (
-                    node.x if side == "left" else node.x + node.width - 1
-                )
-                canvas[feature_row_index][marker_column] = "●"
+                marker_column, marker_row = marker_positions[(feature.id, side)]
+                canvas[marker_row][marker_column] = "●"
                 ports.append(
                     {
                         "id": feature.id,
                         "name": feature.name,
                         "side": side,
-                        "line": canvas_start_line + feature_row_index,
+                        "line": canvas_start_line + marker_row,
                         "display_col": marker_column + 1,
                         "col": _canvas_byte_column(
-                            canvas[feature_row_index],
+                            canvas[marker_row],
                             marker_column + 1,
                         ),
                     }
@@ -1754,7 +2068,6 @@ def _layout_graph(
         feature_owner,
         presentation,
     )
-    _mark_interconnection_ports(nodes, diagram_edges, presentation)
     _assign_ranks(nodes, diagram_edges)
     max_content_width = (
         48
@@ -1763,6 +2076,7 @@ def _layout_graph(
     )
     _prepare_node_text(nodes, max_content_width)
     width, height = _position_nodes(nodes, diagram_edges, max_width)
+    _mark_interconnection_ports(nodes, diagram_edges, presentation)
     _route_edges(nodes, diagram_edges)
     return DiagramLayout(nodes, diagram_edges, width, height), symbols
 

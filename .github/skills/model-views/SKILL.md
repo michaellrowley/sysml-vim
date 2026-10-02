@@ -46,14 +46,18 @@ relevant projection/rendering code in `render.py` or `diagram.py`.
   distinct item types inspectable. Do not promote unowned
   interface-end or definition features to peer parts; omit them when the
   projection does not connect them to a part, while retaining connector
-  relationships that are projected between parts.
+  relationships that are projected between parts. Choose port sides from
+  node placement rather than flow direction so reverse flows use the same
+  physical endpoints. Route same-rank nodes through their facing borders.
 - Structural graph output is also consumed by editor navigation and highlighting.
   Preserve stable node/edge identity and valid geometry when changing its
   structured output; account for terminal display width when laying out text.
-  Route annotations must remain inside their edge geometry; grow the layout
-  beyond a requested viewport width instead of omitting or truncating labels.
-  Route hit cells must support highlighting the selected edge path as well as
-  its entry. Graph inspection details should derive from the selected projected
+  Size each adjacent-rank gap for its widest annotation, not the sum of all
+  labels, and put parallel edge labels on separate route lanes. Route
+  annotations must remain part of their edge geometry; grow the layout beyond
+  a requested viewport width instead of omitting or truncating labels. Route
+  hit cells must support highlighting the selected edge path as well as its
+  entry. Graph inspection details should derive from the selected projected
   nodes and relationships, preserve nested feature ownership, and remain clear
   that they describe only the available projection.
 
