@@ -117,6 +117,58 @@ def _view_connection_edges(
     return edges, rendered_connections
 
 
+def _projected_item_flow_edges(
+    symbols: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    edges = []
+    for symbol in symbols:
+        if symbol.get("kind", "").lower() not in {"flow", "flow_usage"}:
+            continue
+        attributes = symbol.get("attributes", {})
+        if not isinstance(attributes, dict):
+            continue
+
+        endpoints: list[tuple[str, str | None]] = []
+        for attribute in ("flowSource", "flowTarget"):
+            path = attributes.get(attribute)
+            if not isinstance(path, str) or not path.strip():
+                endpoints = []
+                break
+            components = [
+                component.rsplit("::", 1)[-1].strip()
+                for component in path.split(".")
+                if component.strip()
+            ]
+            if not components:
+                endpoints = []
+                break
+            endpoints.append(
+                (
+                    components[-2] if len(components) > 1 else components[0],
+                    components[-1] if len(components) > 1 else None,
+                )
+            )
+        if len(endpoints) != 2:
+            continue
+
+        edge: dict[str, Any] = {
+            "source": endpoints[0][0],
+            "target": endpoints[1][0],
+            "relation": "item_flow",
+            "file": symbol.get("file", ""),
+            "range": symbol.get("range", {}),
+        }
+        if endpoints[0][1]:
+            edge["source_feature"] = endpoints[0][1]
+        if endpoints[1][1]:
+            edge["target_feature"] = endpoints[1][1]
+        item_type = attributes.get("itemType")
+        if isinstance(item_type, str) and item_type.strip():
+            edge["flow_item"] = item_type.rsplit("::", 1)[-1].strip()
+        edges.append(edge)
+    return edges
+
+
 def _symbol_qualified_path(symbol: dict[str, Any]) -> tuple[str, ...]:
     ancestors = symbol.get("ancestors", ())
     if not isinstance(ancestors, (list, tuple)):
@@ -726,6 +778,9 @@ def _view_composition(
         and ref.source
         and ref.relation.lower() not in {"expose", "exposes", "contains"}
     ]
+    if presentation == "interconnection":
+        # Prefer FlowUsage attributes when reference queries echo the same edge.
+        edges = [*_projected_item_flow_edges(symbols), *edges]
     connection_edges, rendered_connections = _view_connection_edges(
         exposed_symbols,
         source_texts,

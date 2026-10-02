@@ -495,6 +495,25 @@ def _build_diagram_edges(
         if _symbol_id(symbol) in feature_owner:
             feature_by_name[symbol.get("name", "")].append(symbol)
 
+    def endpoint_feature_symbol(
+        name: str,
+        owner: str,
+        file: str | None,
+        line: int | None,
+    ) -> dict[str, Any] | None:
+        candidates = feature_by_name.get(name, [])
+        owned_candidates = [
+            candidate
+            for candidate in candidates
+            if candidate.get("container") == owner or owner in _ancestors(candidate)
+        ]
+        return _pick_symbol(
+            owned_candidates or candidates,
+            name,
+            file,
+            line,
+        )
+
     diagram_edges = []
     seen: set[tuple[str, str, str, str | None, str | None]] = set()
     for edge in edges:
@@ -551,9 +570,9 @@ def _build_diagram_edges(
         source_feature_name = edge.get("source_feature")
         target_feature_name = edge.get("target_feature")
         source_feature_symbol = (
-            _pick_symbol(
-                feature_by_name.get(source_feature_name, []),
+            endpoint_feature_symbol(
                 source_feature_name,
+                edge.get("source", ""),
                 edge.get("file"),
                 edge_line,
             )
@@ -561,9 +580,9 @@ def _build_diagram_edges(
             else None
         )
         target_feature_symbol = (
-            _pick_symbol(
-                feature_by_name.get(target_feature_name, []),
+            endpoint_feature_symbol(
                 target_feature_name,
+                edge.get("target", ""),
                 edge.get("file"),
                 edge_line,
             )
@@ -616,20 +635,23 @@ def _build_diagram_edges(
         if key in seen:
             continue
         seen.add(key)
-        flow_item = None
+        flow_item = edge.get("flow_item")
+        if not isinstance(flow_item, str) or not flow_item.strip():
+            flow_item = None
         if presentation == "interconnection" and relation.lower() in {
             "flow",
             "flow_connection",
             "item_flow",
         }:
-            for flow_symbol in (target_symbol, source_symbol):
-                flow_kind = flow_symbol.get("kind", "").lower()
-                if (
-                    flow_kind in {"item_usage", "item_def"}
-                    or "flow" in flow_kind
-                ):
-                    flow_item = _feature_label(flow_symbol, None)
-                    break
+            if flow_item is None:
+                for flow_symbol in (target_symbol, source_symbol):
+                    flow_kind = flow_symbol.get("kind", "").lower()
+                    if (
+                        flow_kind in {"item_usage", "item_def"}
+                        or "flow" in flow_kind
+                    ):
+                        flow_item = _feature_label(flow_symbol, None)
+                        break
             if flow_item is None and isinstance(edge.get("label"), str):
                 flow_item = edge["label"]
         route_label = None
@@ -1344,7 +1366,7 @@ def _inspection_relationship_lines(
 ) -> list[str]:
     excluded = excluded or set()
     relationships = []
-    seen = set(excluded)
+    seen_details = set()
     for edge in edges:
         source = edge.get("source")
         target = edge.get("target")
@@ -1358,16 +1380,47 @@ def _inspection_relationship_lines(
         ):
             continue
         key = source, relation, target
-        if key in seen:
+        if key in excluded:
             continue
-        seen.add(key)
         label = edge.get("label")
-        relation_label = f"{label} / {relation}" if label else relation
-        relationships.append(
-            (source.casefold(), relation.casefold(), target.casefold(),
-             f"  {source} -[{relation_label}]-> {target}")
+        flow_item = edge.get("flow_item")
+        source_feature = edge.get("source_feature")
+        target_feature = edge.get("target_feature")
+        detail_key = (
+            *key,
+            source_feature if isinstance(source_feature, str) else "",
+            target_feature if isinstance(target_feature, str) else "",
+            flow_item if isinstance(flow_item, str) else "",
+            label if isinstance(label, str) else "",
         )
-    return [entry[3] for entry in sorted(relationships)]
+        if detail_key in seen_details:
+            continue
+        seen_details.add(detail_key)
+        if isinstance(flow_item, str) and flow_item.strip():
+            relation_label = f"{label or relation}: {flow_item}"
+        else:
+            relation_label = f"{label} / {relation}" if label else relation
+        source_display = (
+            f"{source}.{source_feature}"
+            if isinstance(source_feature, str) and source_feature
+            else source
+        )
+        target_display = (
+            f"{target}.{target_feature}"
+            if isinstance(target_feature, str) and target_feature
+            else target
+        )
+        line = f"  {source_display} -[{relation_label}]-> {target_display}"
+        relationships.append(
+            (
+                source.casefold(),
+                relation.casefold(),
+                target.casefold(),
+                line.casefold(),
+                line,
+            )
+        )
+    return [entry[4] for entry in sorted(relationships)]
 
 
 def _node_inspection(

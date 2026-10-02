@@ -917,6 +917,138 @@ def test_interconnection_view_marks_projected_item_flows_on_edges():
     )
 
 
+def test_interconnection_view_projects_flow_endpoints_and_item_type():
+    index = _standard_view_index("InterconnectionView")
+    symbols = index.symbols()
+    symbols.extend(
+        [
+            {
+                "name": "payloadOut",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 13, "col": 0, "end_col": 10},
+                "container": "Alpha",
+                "ancestors": ["System", "Alpha"],
+                "attributes": {"itemType": "Payload"},
+            },
+            {
+                "name": "payloadIn",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 14, "col": 0, "end_col": 9},
+                "container": "Beta",
+                "ancestors": ["System", "Beta"],
+                "attributes": {"itemType": "Payload"},
+            },
+            {
+                "name": "packetFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 15, "col": 0, "end_col": 10},
+                "container": "ifConnect",
+                "ancestors": ["System", "ifConnect"],
+                "attributes": {
+                    "flowSource": "Alpha.payloadOut",
+                    "flowTarget": "Beta.payloadIn",
+                    "itemType": "Payload",
+                },
+            },
+            {
+                "name": "statusOut",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 16, "col": 0, "end_col": 9},
+                "container": "Alpha",
+                "ancestors": ["System", "Alpha"],
+                "attributes": {"itemType": "Status"},
+            },
+            {
+                "name": "statusIn",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 17, "col": 0, "end_col": 8},
+                "container": "Beta",
+                "ancestors": ["System", "Beta"],
+                "attributes": {"itemType": "Status"},
+            },
+            {
+                "name": "statusFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 18, "col": 0, "end_col": 10},
+                "container": "ifConnect",
+                "ancestors": ["System", "ifConnect"],
+                "attributes": {
+                    "flowSource": "Alpha.statusOut",
+                    "flowTarget": "Beta.statusIn",
+                    "itemType": "Status",
+                },
+            },
+        ]
+    )
+    reference = Reference(
+        name="payloadIn",
+        file="/workspace/model.sysml",
+        range=Range(15, 0, 10),
+        relation="item_flow",
+        source="payloadOut",
+    )
+    index.references_by_name[reference.name] = [reference]
+
+    view = build_view(index, "composition", focus="bleTraceView", depth=5)
+    rendered = render_graph_data(view, focus="bleTraceView", depth=5)
+    flow_edge = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    )
+    nodes = {node["name"]: node for node in rendered["layout"]["nodes"]}
+    connection = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+
+    assert flow_edge["source_id"] == nodes["Alpha"]["id"]
+    assert flow_edge["target_id"] == nodes["Beta"]["id"]
+    assert flow_edge["source_display"] == "Alpha.payloadOut"
+    assert flow_edge["target_display"] == "Beta.payloadIn"
+    assert flow_edge["source_feature"] == "payloadOut"
+    assert flow_edge["target_feature"] == "payloadIn"
+    assert flow_edge["flow_item"] == "Payload"
+    assert flow_edge["annotation"] == "◆ Payload"
+    connection_inspection = "\n".join(connection["inspection"])
+    assert (
+        "Alpha.payloadOut -[item_flow: Payload]-> Beta.payloadIn"
+        in connection_inspection
+    )
+    assert (
+        "Alpha.statusOut -[item_flow: Status]-> Beta.statusIn"
+        in connection_inspection
+    )
+    assert (
+        "- Alpha.payloadOut -[item_flow: Payload]-> Beta.payloadIn"
+    ) in rendered["graph"]
+    assert "item_flow: Payload" in render_dot(view)
+
+    narrow = render_graph_data(
+        view,
+        focus="bleTraceView",
+        depth=5,
+        max_width=30,
+    )
+    assert narrow["layout"]["width"] > 30
+    narrow_edge = next(
+        edge
+        for edge in narrow["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    )
+    narrow_lines = narrow["graph"].splitlines()
+    assert narrow_edge["annotation"] in "\n".join(
+        narrow_lines[: narrow["layout"]["edge_header_line"] - 1]
+    )
+
+
 def test_interconnection_view_resolves_ports_through_part_usage_types():
     index = _standard_view_index("InterconnectionView")
     symbols = index.symbols()
