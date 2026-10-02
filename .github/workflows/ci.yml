@@ -30,8 +30,9 @@ jobs:
             --prefix "$HOME/.local/share/sysml-vim/lsp" \
             --no-save \
             --no-package-lock \
-            --ignore-scripts \
-            sysml-v2-lsp@0.31.0
+            --no-audit \
+            --no-fund \
+            'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
           echo "SYSML_LSP_SERVER=$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js" >> "$GITHUB_ENV"
       - name: Run backend tests
         run: pytest -q

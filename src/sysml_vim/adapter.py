@@ -151,7 +151,8 @@ class SysMLLspAdapter:
     @staticmethod
     def _configuration_error() -> str:
         return (
-            "SysML v2 parsing is unavailable: install sysml-v2-lsp@0.31.0 and set "
+            "SysML v2 parsing is unavailable: install sysml-v2-lsp from "
+            "michaellrowley/sysml-v2-lsp#feat/flow-usage-projection and set "
             "SYSML_LSP_SERVER to its dist/server/server.js entry point. "
             "No local subset parser or fallback is provided."
         )

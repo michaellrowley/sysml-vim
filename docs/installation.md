@@ -8,15 +8,16 @@ Install the Python package and development dependencies from a checkout:
 python3 -m pip install -e '.[dev]'
 ```
 
-Model commands also require Node.js 20 or newer and the SysML v2 language server. The server package is installed separately from Python:
+Model commands also require Node.js 20 or newer, Git, and the SysML v2 language server. The server package is installed separately from Python and builds from the pinned flow-projection branch:
 
 ```bash
 npm install \
   --prefix "$HOME/.local/share/sysml-vim/lsp" \
   --no-save \
   --no-package-lock \
-  --ignore-scripts \
-  sysml-v2-lsp@0.31.0
+  --no-audit \
+  --no-fund \
+  'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
 export SYSML_LSP_SERVER="$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
 ```
 
@@ -30,7 +31,7 @@ With Homebrew installed, this one-line command clones sysml-vim into Vim's packa
 brew install git && mkdir -p "$HOME/.vim/pack/plugins/start" && git clone https://github.com/michaellrowley/sysml-vim "$HOME/.vim/pack/plugins/start/sysml-vim" && "$HOME/.vim/pack/plugins/start/sysml-vim/tools/install.sh"
 ```
 
-The installer uses Homebrew for missing Python 3.11+, Node.js 20+, npm, Vim, or Graphviz (`dot`) dependencies; installs the pinned `sysml-v2-lsp` package; creates a dedicated Python virtual environment; activates the plugin without replacing an existing checkout; and adds an idempotent configuration include to `~/.vimrc`. Restart Vim after it completes. For an existing checkout, run `./tools/install.sh` from its root.
+The installer uses Homebrew for missing Git, Python 3.11+, Node.js 20+, npm, Vim, or Graphviz (`dot`) dependencies; installs and builds the `sysml-v2-lsp` flow-projection branch; creates a dedicated Python virtual environment; activates the plugin without replacing an existing checkout; and adds an idempotent configuration include to `~/.vimrc`. Set `SYSML_LSP_PACKAGE_SPEC` to a full commit ref when a reproducible parser snapshot is required. Restart Vim after it completes. For an existing checkout, run `./tools/install.sh` from its root.
 
 ## Vim (vim-plug)
 

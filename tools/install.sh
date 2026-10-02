@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly LSP_PACKAGE_NAME="sysml-v2-lsp"
-readonly DEFAULT_LSP_PACKAGE_VERSION="0.31.0"
+readonly DEFAULT_LSP_PACKAGE_SPEC="git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection"
 
 fail() {
   printf 'sysml-vim installer: %s\n' "$1" >&2
@@ -24,12 +24,13 @@ if [[ "${1:-}" == "--help" ]]; then
 Install the SysML v2 language server, the sysml-vim Python backend, and Vim plugin.
 
 Run this script from a sysml-vim checkout. Homebrew is used on macOS to install
-missing Python 3.11+, Node.js 20+, Vim, or Graphviz (`dot`) dependencies.
+missing Git, Python 3.11+, Node.js 20+, Vim, or Graphviz (`dot`) dependencies.
 
 Overrides:
   SYSML_VIM_INSTALL_ROOT  data and Python environment directory
   SYSML_VIM_PLUGIN_DIR    Vim package install location
-  SYSML_LSP_PACKAGE_VERSION  sysml-v2-lsp npm version (default: 0.31.0)
+  SYSML_LSP_PACKAGE_SPEC  npm package spec (default: the flow projection branch)
+  SYSML_LSP_PACKAGE_VERSION  legacy npm-version override
 HELP
   exit 0
 fi
@@ -40,6 +41,7 @@ source_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 [[ -f "$source_root/pyproject.toml" ]] || fail "run this script from a sysml-vim checkout"
 
 brew_packages=()
+command -v git >/dev/null 2>&1 || brew_packages+=(git)
 python_is_supported || brew_packages+=(python@3.12)
 if ! node_is_supported || ! command -v npm >/dev/null 2>&1; then
   brew_packages+=(node)
@@ -62,6 +64,7 @@ fi
 python_is_supported || fail "Python 3.11 or newer is required"
 node_is_supported || fail "Node.js 20 or newer is required"
 command -v npm >/dev/null 2>&1 || fail "npm is required to install the SysML language server"
+command -v git >/dev/null 2>&1 || fail "Git is required to install the SysML language server from GitHub"
 command -v vim >/dev/null 2>&1 || fail "Vim is required"
 
 home_directory=${HOME:?HOME must be set}
@@ -70,17 +73,22 @@ mkdir -p "$install_root"
 install_root=$(cd "$install_root" && pwd -P)
 
 lsp_home="$install_root/lsp"
-lsp_package_version=${SYSML_LSP_PACKAGE_VERSION:-$DEFAULT_LSP_PACKAGE_VERSION}
+lsp_package_spec=${SYSML_LSP_PACKAGE_SPEC:-}
+if [[ -z "$lsp_package_spec" ]]; then
+  lsp_package_spec=$DEFAULT_LSP_PACKAGE_SPEC
+  if [[ -n "${SYSML_LSP_PACKAGE_VERSION:-}" ]]; then
+    lsp_package_spec="$LSP_PACKAGE_NAME@$SYSML_LSP_PACKAGE_VERSION"
+  fi
+fi
 mkdir -p "$lsp_home"
-printf 'Installing %s@%s into %s\n' "$LSP_PACKAGE_NAME" "$lsp_package_version" "$lsp_home"
+printf 'Installing %s from %s into %s\n' "$LSP_PACKAGE_NAME" "$lsp_package_spec" "$lsp_home"
 npm install \
   --prefix "$lsp_home" \
   --no-save \
   --no-package-lock \
-  --ignore-scripts \
   --no-audit \
   --no-fund \
-  "$LSP_PACKAGE_NAME@$lsp_package_version"
+  "$lsp_package_spec"
 lsp_server="$lsp_home/node_modules/$LSP_PACKAGE_NAME/dist/server/server.js"
 [[ -f "$lsp_server" ]] || fail "the installed package does not contain its LSP server entry point"
 
@@ -140,7 +148,7 @@ if ! grep -Fqx "$source_statement" "$vimrc"; then
 fi
 
 printf '\nInstallation complete.\n'
-printf 'Parser: %s@%s\n' "$LSP_PACKAGE_NAME" "$lsp_package_version"
+printf 'Parser: %s from %s\n' "$LSP_PACKAGE_NAME" "$lsp_package_spec"
 if (( load_source_root_first )); then
   printf 'Vim plugin: %s (runtimepath; preserved existing checkout at %s)\n' \
     "$source_root" "$plugin_directory"

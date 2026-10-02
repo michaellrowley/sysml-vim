@@ -31,11 +31,11 @@ packed into compact rows below connected structures.
 
 ## Upstream references used
 
-Checked on 2026-09-27:
+Checked on 2026-10-02:
 
 - `Systems-Modeling/SysML-v2-Release` HEAD: `fb97b754f29588b8e9c7a35f370880cd15eb29e7` (release `2026-08`)
 - `daltskin/sysml-v2-grammar` HEAD: `14b0d7a26d369a0096ac8b5db4d90685e1498b47` (ANTLR grammar generated from the `2026-08` KEBNF release)
-- `daltskin/sysml-v2-lsp` HEAD: `2cb64aaf43c05f0921f4fa4c640d69b44d189e13` (npm package `0.31.0`)
+- `michaellrowley/sysml-v2-lsp` branch `feat/flow-usage-projection`, HEAD `deedc813f0d4d897869d24ef770321a2d98cecb7` (npm package `0.32.0`, fork of `daltskin/sysml-v2-lsp`)
 - The grammar and language server are community-maintained integrations; their tests and diagnostics do not establish official conformance.
 
 ## Features
@@ -75,7 +75,7 @@ Checked on 2026-09-27:
 
 ```bash
 python3 -m pip install -e .
-npm install --prefix "$HOME/.local/share/sysml-vim/lsp" --no-save --no-package-lock --ignore-scripts sysml-v2-lsp@0.31.0
+npm install --prefix "$HOME/.local/share/sysml-vim/lsp" --no-save --no-package-lock --no-audit --no-fund 'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
 export SYSML_LSP_SERVER="$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
 sysml health --path .
 sysml parser-status
@@ -83,7 +83,7 @@ sysml check tests/fixtures/workspace
 sysml view composition --path tests/fixtures/workspace --format text
 ```
 
-The language server requires Node.js 20 or newer. The `sysml-rpc` backend keeps its LSP process alive and reuses the server's parse cache for an unchanged workspace. SVG rendering requires Graphviz (`dot`); the automated macOS installer installs it when missing. See [the complete setup](docs/lsp-parser.md). Without the language server, model commands report an explicit error rather than using an incomplete parser.
+The language server requires Node.js 20 or newer and Git; npm builds the fork's server from source during installation. The installer tracks the flow-projection branch by default; set `SYSML_LSP_PACKAGE_SPEC` to a full commit ref for a reproducible snapshot. The `sysml-rpc` backend keeps its LSP process alive and reuses the server's parse cache for an unchanged workspace. SVG rendering requires Graphviz (`dot`); the automated macOS installer installs it when missing. See [the complete setup](docs/lsp-parser.md). Without the language server, model commands report an explicit error rather than using an incomplete parser.
 
 ### Full one-line Vim install (macOS)
 

@@ -12,7 +12,7 @@ from sysml_vim.workspace import WorkspaceIndex
 CONFIGURED_SERVER = os.environ.get("SYSML_LSP_SERVER", "")
 pytestmark = pytest.mark.skipif(
     not CONFIGURED_SERVER or not Path(CONFIGURED_SERVER).is_file(),
-    reason="set SYSML_LSP_SERVER to run against the published SysML v2 LSP package",
+    reason="set SYSML_LSP_SERVER to run against the configured SysML v2 LSP package",
 )
 
 
@@ -98,5 +98,47 @@ def test_published_lsp_parses_models_and_reports_syntax_errors(tmp_path, monkeyp
         assert index.is_current() is False
         index.refresh()
         assert index.definition("gbskygodlk")["kind"] == "attribute_usage"
+    finally:
+        adapter.close()
+
+
+def test_configured_lsp_projects_item_flow_payload_and_endpoints(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.delenv("SYSML_LSP_COMMAND", raising=False)
+    model_file = tmp_path / "flow.sysml"
+    model_file.write_text(
+        """package FlowFixture {
+  item def Payload;
+  part source {
+    item payloadOut : Payload;
+  }
+  part target {
+    item payloadIn : Payload;
+  }
+  interface def Link {
+    flow of Payload from source.payloadOut to target.payloadIn;
+  }
+}
+""",
+        encoding="utf-8",
+    )
+
+    adapter = SysMLLspAdapter()
+    try:
+        index = WorkspaceIndex(tmp_path, adapter)
+        index.refresh()
+
+        flow_symbols = [
+            symbol
+            for symbol in index.symbols()
+            if "flow" in symbol["kind"].lower()
+        ]
+        assert len(flow_symbols) == 1
+        attributes = flow_symbols[0]["attributes"]
+        assert attributes["itemType"] == "Payload"
+        assert attributes["flowSource"] == "source.payloadOut"
+        assert attributes["flowTarget"] == "target.payloadIn"
     finally:
         adapter.close()
