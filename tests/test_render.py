@@ -737,6 +737,9 @@ def test_interconnection_view_uses_parts_ports_and_interface_edges():
     assert ports["outlet"]["side"] == "right"
     assert ports["inlet"]["side"] == "left"
     assert "●" in rendered["graph"]
+    alpha_inspection = nodes["Alpha"]["inspection"]
+    assert any("outlet [port usage]" in line for line in alpha_inspection)
+    assert not any("inlet [port usage]" in line for line in alpha_inspection)
     graph_lines = rendered["graph"].splitlines()
     for port in ports.values():
         port_line = graph_lines[port["line"] - 1]
@@ -749,6 +752,9 @@ def test_interconnection_view_uses_parts_ports_and_interface_edges():
         if edge["relation"] == "connect"
     )
     assert connection["annotation"] == "ifConnect"
+    assert "Interface usage: ifConnect" in connection["inspection"]
+    assert any("outlet [port usage]" in line for line in connection["inspection"])
+    assert any("inlet [port usage]" in line for line in connection["inspection"])
     assert "ifConnect" in "\n".join(
         graph_lines[: rendered["layout"]["edge_header_line"] - 1]
     )
@@ -854,6 +860,16 @@ def test_interconnection_view_marks_projected_item_flows_on_edges():
         if edge["relation"] == "item_flow"
     )
     assert flow_edge["flow_item"] == "payloadIn : Payload"
+    connection = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+    connection_inspection = "\n".join(connection["inspection"])
+    assert "Interface usage: ifConnect" in connection_inspection
+    assert "payloadOut [item usage] : Payload" in connection_inspection
+    assert "payloadIn [item usage] : Payload" in connection_inspection
+    assert "payloadOut -[item_flow]-> payloadIn" in connection_inspection
     assert flow_edge["annotation"] == "◆ payloadIn"
     assert "◆" in rendered["graph"]
     assert (

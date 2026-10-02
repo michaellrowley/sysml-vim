@@ -109,6 +109,7 @@ nnoremap <silent> <Plug>(sysml-graph-next-node) :call sysml#graph_navigate('node
 nnoremap <silent> <Plug>(sysml-graph-prev-node) :call sysml#graph_navigate('node', -1)<CR>
 nnoremap <silent> <Plug>(sysml-graph-next-edge) :call sysml#graph_navigate('edge', 1)<CR>
 nnoremap <silent> <Plug>(sysml-graph-prev-edge) :call sysml#graph_navigate('edge', -1)<CR>
+nnoremap <silent> <Plug>(sysml-graph-inspect) :call sysml#graph_inspect()<CR>
 nnoremap <silent> <Plug>(sysml-graph-left) :call sysml#graph_move('left')<CR>
 nnoremap <silent> <Plug>(sysml-graph-right) :call sysml#graph_move('right')<CR>
 nnoremap <silent> <Plug>(sysml-graph-up) :call sysml#graph_move('up')<CR>

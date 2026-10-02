@@ -45,7 +45,9 @@ relevant projection/rendering code in `render.py` or `diagram.py`.
   Route annotations must remain inside their edge geometry; grow the layout
   beyond a requested viewport width instead of omitting or truncating labels.
   Route hit cells must support highlighting the selected edge path as well as
-  its entry.
+  its entry. Graph inspection details should derive from the selected projected
+  nodes and relationships, preserve nested feature ownership, and remain clear
+  that they describe only the available projection.
 
 ## Tests
 

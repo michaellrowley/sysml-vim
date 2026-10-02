@@ -391,6 +391,9 @@ function! s:open_view_buffer(name, lines, session) abort
     if empty(maparg('[e', 'n'))
       nmap <buffer> [e <Plug>(sysml-graph-prev-edge)
     endif
+    if empty(maparg('<CR>', 'n'))
+      nmap <buffer> <CR> <Plug>(sysml-graph-inspect)
+    endif
     call s:select_graph_node(get(a:session, 'focus', ''))
   endif
 endfunction
@@ -1126,6 +1129,7 @@ function! sysml#graph_mouse_sync(...) abort
         if edge.line == current_line
           let b:sysml_graph_selection = {
                 \ 'kind': 'edge',
+                \ 'id': get(edge, 'id', ''),
                 \ 'source': edge.source,
                 \ 'relation': edge.relation,
                 \ 'target': edge.target
@@ -1144,6 +1148,7 @@ function! sysml#graph_mouse_sync(...) abort
     if s:edge_contains(edge, current_line, current_column)
       let b:sysml_graph_selection = {
             \ 'kind': 'edge',
+            \ 'id': get(edge, 'id', ''),
             \ 'source': edge.source,
             \ 'relation': edge.relation,
             \ 'target': edge.target
@@ -1152,6 +1157,81 @@ function! sysml#graph_mouse_sync(...) abort
       return
     endif
   endfor
+endfunction
+
+function! sysml#graph_inspect() abort
+  if get(b:, 'sysml_view_method', '') !=# 'view_graph'
+    echohl WarningMsg
+    echom 'sysml graph inspection is only available in a graph view'
+    echohl None
+    return
+  endif
+
+  call sysml#graph_mouse_sync()
+  let selection = get(b:, 'sysml_graph_selection', {})
+  let layout = s:graph_layout()
+  let inspection = []
+  if get(selection, 'kind', '') ==# 'node'
+    for node in layout.nodes
+      if (!empty(get(selection, 'id', '')) && node.id ==# selection.id)
+            \ || node.name ==# get(selection, 'name', '')
+        let inspection = get(node, 'inspection', [])
+        break
+      endif
+    endfor
+  elseif get(selection, 'kind', '') ==# 'edge'
+    for edge in layout.edges
+      if (!empty(get(selection, 'id', '')) && edge.id ==# selection.id)
+            \ || (edge.source ==# get(selection, 'source', '')
+            \ && edge.relation ==# get(selection, 'relation', '')
+            \ && edge.target ==# get(selection, 'target', ''))
+        let inspection = get(edge, 'inspection', [])
+        break
+      endif
+    endfor
+  endif
+
+  if type(inspection) != v:t_list || empty(inspection)
+    echohl WarningMsg
+    echom 'no projected inspection details for this graph element'
+    echohl None
+    return
+  endif
+
+  let source_buffer = bufnr('%')
+  let source_window = win_getid()
+  let inspection_name = 'sysml-inspect-' . source_buffer
+  let inspection_buffer = bufnr(inspection_name)
+  if inspection_buffer >= 0 && !empty(win_findbuf(inspection_buffer))
+    call win_gotoid(win_findbuf(inspection_buffer)[0])
+  elseif inspection_buffer >= 0
+    tabnew
+    execute 'buffer ' . inspection_buffer
+  else
+    tabnew
+    execute 'file ' . fnameescape(inspection_name)
+  endif
+  setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile
+  setlocal modifiable wrap linebreak
+  call setline(1, inspection)
+  if line('$') > len(inspection)
+    execute (len(inspection) + 1) . ',$delete _'
+  endif
+  setlocal nomodified nomodifiable
+  let b:sysml_inspection_source_buffer = source_buffer
+  let b:sysml_inspection_source_window = source_window
+  nnoremap <buffer> <silent> q :call sysml#graph_inspection_close()<CR>
+  nnoremap <buffer> <silent> <Esc> :call sysml#graph_inspection_close()<CR>
+endfunction
+
+function! sysml#graph_inspection_close() abort
+  let source_window = get(b:, 'sysml_inspection_source_window', -1)
+  tabclose
+  if source_window > 0 && win_gotoid(source_window) == 0
+    echohl WarningMsg
+    echom 'sysml inspection closed; the source graph window is no longer available'
+    echohl None
+  endif
 endfunction
 
 function! sysml#graph_move(direction) abort

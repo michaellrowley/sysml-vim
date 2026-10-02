@@ -101,6 +101,12 @@ rendered edge selects it in Neovim; in Vim, click to select because Vim does
 not report pointer-hover events. Selection highlighting is limited to the
 selected node's box or the selected edge's route and entry, rather than
 extending across the full screen.
+Press `<CR>` on a selected node or edge to open its projected details in a
+read-only tab. Node details show the projected feature hierarchy and related
+relationships. Interconnection-edge details show the interface usage, both
+endpoint part/port hierarchies, and projected flows or bindings touching those
+hierarchies. These details reflect only the available language-server
+projection and do not imply complete SysML/KerML semantics.
 
 Node boxes are colored by element family. Edge paths use one consistent color,
 while edge entries use relationship-family colors; only actual crossing

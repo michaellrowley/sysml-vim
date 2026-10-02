@@ -12,7 +12,10 @@ When a view request focuses a SysML view usage, `view` includes its resolved
 standard `presentation` when available. `view_text` and `view_graph` render
 that presentation; `view_graph`'s structured `layout` also reports it so editor
 clients can enable presentation-specific interactions such as BrowserView
-folding. The standard view definitions and their projection limits are
-described in [Views](views.md#standard-sysml-v2-view-definitions).
+folding. Graph layout nodes and edges also carry backend-generated `inspection`
+line arrays for editor integrations. These summarize projected feature trees
+and relationships; they are not a complete semantic model. The standard view
+definitions and their projection limits are described in
+[Views](views.md#standard-sysml-v2-view-definitions).
 
 Model operations use the configured SysML language server. RPC requests reuse the indexed model while the workspace's file paths, modification times, sizes, and document overrides are unchanged; set `params.refresh` to `true` to force a new parse. The server remains alive for the RPC service lifetime and reuses its parse cache. `health` and `parser_status` report configuration without starting the language server.

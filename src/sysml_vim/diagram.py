@@ -1286,6 +1286,160 @@ def _diagram_edge_label(edge: DiagramEdge) -> str:
     return edge.label or edge.relation
 
 
+def _inspection_symbol_label(symbol: dict[str, Any]) -> str:
+    label = f"{symbol.get('name', '')} [{symbol.get('kind', 'element').replace('_', ' ')}]"
+    display_type = _display_type(symbol)
+    if display_type:
+        label += f" : {display_type}"
+    return label
+
+
+def _inspection_tree(
+    root: dict[str, Any],
+    symbols: list[dict[str, Any]],
+    *,
+    indent: str = "",
+) -> tuple[list[str], set[str]]:
+    lines = [indent + _inspection_symbol_label(root)]
+    names = {str(root.get("name", ""))}
+    visited = {_symbol_id(root)}
+
+    def add_children(parent: dict[str, Any], prefix: str) -> None:
+        children = [
+            symbol
+            for symbol in symbols
+            if symbol.get("container") == parent.get("name")
+            and symbol.get("file") == parent.get("file")
+            and _symbol_id(symbol) not in visited
+            and (
+                not _ancestors(symbol)
+                or not _ancestors(parent)
+                or _ancestors(symbol) == (*_ancestors(parent), str(parent.get("name", "")))
+            )
+        ]
+        children.sort(
+            key=lambda symbol: (
+                symbol.get("range", {}).get("line", 0),
+                symbol.get("name", "").casefold(),
+            )
+        )
+        for index, child in enumerate(children):
+            visited.add(_symbol_id(child))
+            names.add(str(child.get("name", "")))
+            last = index == len(children) - 1
+            branch = "└─ " if last else "├─ "
+            child_prefix = "   " if last else "│  "
+            lines.append(prefix + branch + _inspection_symbol_label(child))
+            add_children(child, prefix + child_prefix)
+
+    add_children(root, indent)
+    return lines, names
+
+
+def _inspection_relationship_lines(
+    names: set[str],
+    edges: list[dict[str, Any]],
+    *,
+    excluded: set[tuple[str, str, str]] | None = None,
+) -> list[str]:
+    excluded = excluded or set()
+    relationships = []
+    seen = set(excluded)
+    for edge in edges:
+        source = edge.get("source")
+        target = edge.get("target")
+        relation = edge.get("relation")
+        if (
+            not isinstance(source, str)
+            or not isinstance(target, str)
+            or not isinstance(relation, str)
+            or relation.lower() == "contains"
+            or (source not in names and target not in names)
+        ):
+            continue
+        key = source, relation, target
+        if key in seen:
+            continue
+        seen.add(key)
+        label = edge.get("label")
+        relation_label = f"{label} / {relation}" if label else relation
+        relationships.append(
+            (source.casefold(), relation.casefold(), target.casefold(),
+             f"  {source} -[{relation_label}]-> {target}")
+        )
+    return [entry[3] for entry in sorted(relationships)]
+
+
+def _node_inspection(
+    root: dict[str, Any],
+    symbols: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+) -> list[str]:
+    tree, names = _inspection_tree(root, symbols)
+    lines = [f"Element: {_inspection_symbol_label(root)}", "", "Projected features:"]
+    lines.extend(tree[1:] or ["  (none projected)"])
+    relationships = _inspection_relationship_lines(names, edges)
+    if relationships:
+        lines.extend(["", "Projected relationships:", *relationships])
+    return lines
+
+
+def _edge_inspection(
+    edge: DiagramEdge,
+    node_by_id: dict[str, DiagramNode],
+    symbols: list[dict[str, Any]],
+    relationships: list[dict[str, Any]],
+) -> list[str]:
+    symbol_by_id = {_symbol_id(symbol): symbol for symbol in symbols}
+    source_node = node_by_id[edge.source]
+    target_node = node_by_id[edge.target]
+    source_root = symbol_by_id.get(source_node.id)
+    target_root = symbol_by_id.get(target_node.id)
+    source_tree, source_names = (
+        _inspection_tree(source_root, symbols)
+        if source_root
+        else ([source_node.name], {source_node.name})
+    )
+    target_tree, target_names = (
+        _inspection_tree(target_root, symbols)
+        if target_root
+        else ([target_node.name], {target_node.name})
+    )
+    source_name = edge.source_display
+    target_name = edge.target_display
+    lines = [
+        f"Edge: {source_name} -[{edge.label or edge.relation}]-> {target_name}",
+    ]
+    if edge.relation.lower() == "connect" and edge.label:
+        lines.extend(["", f"Interface usage: {edge.label}"])
+    lines.extend(["", "Source side:", *[f"  {line}" for line in source_tree]])
+    lines.extend(["", "Target side:", *[f"  {line}" for line in target_tree]])
+
+    connected_names = source_names | target_names
+    flow_edges = [
+        relationship
+        for relationship in relationships
+        if isinstance(relationship.get("relation"), str)
+        and (
+            "flow" in relationship["relation"].lower()
+            or relationship["relation"].lower() in {"binding", "bind", "delegate"}
+        )
+        and (
+            relationship.get("source") in connected_names
+            or relationship.get("target") in connected_names
+        )
+    ]
+    related_lines = _inspection_relationship_lines(
+        connected_names,
+        flow_edges,
+    )
+    if related_lines:
+        lines.extend(["", "Projected flows and bindings:", *related_lines])
+    else:
+        lines.extend(["", "Projected flows and bindings:", "  (none projected)"])
+    return lines
+
+
 def _canvas_text(canvas: list[list[str]], x: int, y: int, text: str) -> None:
     for character in text:
         if 0 <= y < len(canvas) and 0 <= x < len(canvas[y]):
@@ -2466,7 +2620,7 @@ def render_graph_data(
     if presentation == "sequence":
         return _render_sequence_view(view, max_width)
 
-    layout, _ = _layout_graph(view, focus, depth, max_width)
+    layout, visible_symbols = _layout_graph(view, focus, depth, max_width)
     if not layout.nodes:
         title = view.get(
             "title",
@@ -2548,6 +2702,18 @@ def render_graph_data(
         _canvas_text(canvas, x, y, label)
 
     node_metadata = _draw_nodes(canvas, layout.nodes, canvas_start_line)
+    visible_symbols_by_id = {
+        _symbol_id(symbol): symbol
+        for symbol in visible_symbols
+    }
+    for node_metadata_item in node_metadata:
+        symbol = visible_symbols_by_id.get(node_metadata_item["id"])
+        if symbol:
+            node_metadata_item["inspection"] = _node_inspection(
+                symbol,
+                visible_symbols,
+                view.get("edges", []),
+            )
     canvas_lines = ["".join(row).rstrip() for row in canvas]
     while canvas_lines and not canvas_lines[-1]:
         canvas_lines.pop()
@@ -2599,10 +2765,13 @@ def render_graph_data(
             )
             edge_route_metadata.append(
                 {
+                    "id": edge.id,
                     "source": source_feature.name if source_feature else source_node.name,
                     "target": (
                         target_feature.name if target_feature else target_node.name
                     ),
+                    "source_display": edge.source_display,
+                    "target_display": edge.target_display,
                     "source_feature": (
                         source_feature.name if source_feature else None
                     ),
@@ -2613,6 +2782,12 @@ def render_graph_data(
                     "label": edge.label,
                     "flow_item": edge.flow_item,
                     "annotation": edge.route_label,
+                    "inspection": _edge_inspection(
+                        edge,
+                        node_by_id,
+                        visible_symbols,
+                        view.get("edges", []),
+                    ),
                     "line": edge_entry_line,
                     "col": _byte_column(summary, 3),
                     "source_line": canvas_start_line + source_row,

@@ -65,6 +65,7 @@ MAPPINGS                                                *sysml-vim-mappings*
 <Plug>(sysml-graph-prev-node)
 <Plug>(sysml-graph-next-edge)
 <Plug>(sysml-graph-prev-edge)
+<Plug>(sysml-graph-inspect)
 <Plug>(sysml-graph-left)
 <Plug>(sysml-graph-right)
 <Plug>(sysml-graph-up)
@@ -79,7 +80,9 @@ Default mappings (if free):
 In :v2 graph buffers, ]n / [n move to the next / previous node and
 ]e / [e move to the next / previous edge and highlight its route and edge
 entry. These defaults respect existing mappings and can be remapped through
-the corresponding <Plug> mappings.
+the corresponding <Plug> mappings. Press <CR> on a selected node or edge to
+open its projected details in a read-only tab. Interconnection-edge details
+include connected part/port trees and projected flows or bindings.
 Arrow keys trace outward from the selected box and move to the first node hit
 in that direction. If no ray intersects a node, they move to the nearest node
 in that half-plane. With mouse support enabled ('mouse'), hovering over a node

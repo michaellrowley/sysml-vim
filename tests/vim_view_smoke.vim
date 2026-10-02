@@ -141,9 +141,19 @@ if get(s:selection_match, 'pos1', []) !=# [
 endif
 if empty(maparg(']n', 'n')) || empty(maparg('[n', 'n'))
       \ || empty(maparg(']e', 'n')) || empty(maparg('[e', 'n'))
+      \ || empty(maparg('<CR>', 'n'))
       \ || empty(maparg('<Left>', 'n')) || empty(maparg('<Right>', 'n'))
       \ || empty(maparg('<Up>', 'n')) || empty(maparg('<Down>', 'n'))
   cquit 14
+endif
+call cursor(s:selected_node.line, s:selected_node.col)
+call sysml#graph_inspect()
+if bufname('%') !~# '^sysml-inspect-' || getline(1) !~# '^Element: '
+  cquit 42
+endif
+call sysml#graph_inspection_close()
+if bufnr('%') != s:graph_buffer
+  cquit 43
 endif
 call cursor(1, 1)
 normal ]n
@@ -211,6 +221,14 @@ for s:match in getmatches()
 endfor
 if !s:edge_route_highlighted
   cquit 41
+endif
+call sysml#graph_inspect()
+if bufname('%') !~# '^sysml-inspect-' || getline(1) !~# '^Edge: '
+  cquit 44
+endif
+call sysml#graph_inspection_close()
+if bufnr('%') != s:graph_buffer
+  cquit 45
 endif
 call cursor(1, 1)
 normal ]n
