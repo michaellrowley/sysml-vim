@@ -515,7 +515,9 @@ def _build_diagram_edges(
         )
 
     diagram_edges = []
-    seen: set[tuple[str, str, str, str | None, str | None]] = set()
+    seen: set[
+        tuple[str, str, str, str | None, str | None, str | None]
+    ] = set()
     for edge in edges:
         relation = edge.get("relation")
         if not isinstance(relation, str):
@@ -544,7 +546,7 @@ def _build_diagram_edges(
             target_id = _symbol_id(target_symbol)
             if source_id not in node_ids or target_id not in node_ids:
                 continue
-            key = (source_id, target_id, relation, None, None)
+            key = (source_id, target_id, relation, None, None, None)
             if key in seen:
                 continue
             seen.add(key)
@@ -631,13 +633,20 @@ def _build_diagram_edges(
         ):
             continue
         target_feature = target_id if target_id in feature_owner else None
-        key = (source_node, target_node, relation, source_feature, target_feature)
-        if key in seen:
-            continue
-        seen.add(key)
         flow_item = edge.get("flow_item")
         if not isinstance(flow_item, str) or not flow_item.strip():
             flow_item = None
+        key = (
+            source_node,
+            target_node,
+            relation,
+            source_feature,
+            target_feature,
+            flow_item,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
         if presentation == "interconnection" and relation.lower() in {
             "flow",
             "flow_connection",
@@ -1153,6 +1162,7 @@ def _route_annotation_positions(
     }
     all_route_cells = set().union(*route_cells_by_id.values())
     occupied: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    label_padding = 1
     annotations = {}
     for edge in edges:
         label = edge.route_label
@@ -1188,8 +1198,10 @@ def _route_annotation_positions(
                 end = start + label_width - 1
                 if any((column, row) in other_routes for column in range(start, end + 1)):
                     continue
+                # Keep annotations on shared flow routes visually distinct.
                 if any(
-                    start <= occupied_end and end >= occupied_start
+                    start <= occupied_end + label_padding
+                    and end + label_padding >= occupied_start
                     for occupied_start, occupied_end in occupied[row]
                 ):
                     continue

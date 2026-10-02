@@ -1049,6 +1049,166 @@ def test_interconnection_view_projects_flow_endpoints_and_item_type():
     )
 
 
+def test_interconnection_view_maps_interface_definition_flows_to_connections():
+    index = _standard_view_index("InterconnectionView")
+    symbols = index.symbols()
+    interface_usage = next(
+        symbol for symbol in symbols if symbol["name"] == "ifConnect"
+    )
+    interface_usage["attributes"]["partType"] = "Link"
+    symbols.extend(
+        [
+            {
+                "name": "Link",
+                "kind": "interface_def",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 13, "col": 0, "end_col": 10},
+                "container": "System",
+                "ancestors": ["System"],
+                "attributes": {},
+            },
+            {
+                "name": "sourceEnd",
+                "kind": "port_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 14, "col": 0, "end_col": 9},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {"portType": "DataPort"},
+            },
+            {
+                "name": "targetEnd",
+                "kind": "port_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 15, "col": 0, "end_col": 9},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {"portType": "DataPort"},
+            },
+            {
+                "name": "firstFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 16, "col": 0, "end_col": 10},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {
+                    "flowSource": "sourceEnd.payload",
+                    "flowTarget": "targetEnd.payload",
+                    "itemType": "Payload",
+                },
+            },
+            {
+                "name": "secondFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 17, "col": 0, "end_col": 11},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {
+                    "flowSource": "sourceEnd.status",
+                    "flowTarget": "targetEnd.status",
+                    "itemType": "Status",
+                },
+            },
+            {
+                "name": "reverseFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 18, "col": 0, "end_col": 12},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {
+                    "flowSource": "targetEnd.returnData",
+                    "flowTarget": "sourceEnd.returnData",
+                    "itemType": "Response",
+                },
+            },
+        ]
+    )
+
+    view = build_view(index, "composition", focus="bleTraceView", depth=5)
+    rendered = render_graph_data(view, focus="bleTraceView", depth=5)
+    nodes = {node["name"]: node for node in rendered["layout"]["nodes"]}
+    flow_edges = [
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    ]
+    connection = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+
+    assert {edge["flow_item"] for edge in flow_edges} == {
+        "Payload",
+        "Status",
+        "Response",
+    }
+    forward_flows = [edge for edge in flow_edges if edge["flow_item"] != "Response"]
+    reverse_flow = next(
+        edge for edge in flow_edges if edge["flow_item"] == "Response"
+    )
+    assert all(
+        edge["source_id"] == nodes["Alpha"]["id"] for edge in forward_flows
+    )
+    assert all(
+        edge["target_id"] == nodes["Beta"]["id"] for edge in forward_flows
+    )
+    assert all(edge["source_display"] == "Alpha.outlet" for edge in forward_flows)
+    assert all(edge["target_display"] == "Beta.inlet" for edge in forward_flows)
+    assert reverse_flow["source_id"] == nodes["Beta"]["id"]
+    assert reverse_flow["target_id"] == nodes["Alpha"]["id"]
+    assert reverse_flow["source_display"] == "Beta.inlet"
+    assert reverse_flow["target_display"] == "Alpha.outlet"
+    assert len({edge["id"] for edge in flow_edges}) == 3
+    assert len({edge["line"] for edge in flow_edges}) == 3
+    connection_inspection = "\n".join(connection["inspection"])
+    assert (
+        "Alpha.outlet -[item_flow: Payload]-> Beta.inlet"
+        in connection_inspection
+    )
+    assert (
+        "Alpha.outlet -[item_flow: Status]-> Beta.inlet"
+        in connection_inspection
+    )
+    assert (
+        "Beta.inlet -[item_flow: Response]-> Alpha.outlet"
+        in connection_inspection
+    )
+    assert "◆ Payload" in rendered["graph"]
+    assert "◆ Status" in rendered["graph"]
+    assert "◆ Response" in rendered["graph"]
+    diagram_lines = rendered["graph"].splitlines()[
+        : rendered["layout"]["edge_header_line"] - 1
+    ]
+    annotation_spans: dict[int, list[tuple[int, int]]] = {}
+    for annotation in [
+        connection["annotation"],
+        *(edge["annotation"] for edge in flow_edges),
+    ]:
+        location = next(
+            (
+                (line_number, line.find(annotation))
+                for line_number, line in enumerate(diagram_lines)
+                if annotation in line
+            ),
+            None,
+        )
+        assert location is not None
+        line_number, character_column = location
+        start = _display_width(diagram_lines[line_number][:character_column])
+        end = start + _display_width(annotation) - 1
+        annotation_spans.setdefault(line_number, []).append((start, end))
+    for spans in annotation_spans.values():
+        spans.sort()
+        assert all(
+            right_start > left_end + 1
+            for (_, left_end), (right_start, _) in zip(spans, spans[1:])
+        )
+
+
 def test_interconnection_view_resolves_ports_through_part_usage_types():
     index = _standard_view_index("InterconnectionView")
     symbols = index.symbols()

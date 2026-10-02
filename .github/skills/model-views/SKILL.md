@@ -38,7 +38,12 @@ relevant projection/rendering code in `render.py` or `diagram.py`.
   projected item-flow relationships with their item when available. Prefer
   FlowUsage `flowSource`, `flowTarget`, and `itemType` projection attributes
   over references when constructing item-flow edges, since endpoint paths may
-  not resolve as declaration-name references. Do not promote unowned
+  not resolve as declaration-name references. When a flow is declared inside
+  an interface definition, map its two projected end ports through each visible
+  typed interface usage to that connector's concrete endpoints, using
+  declaration order to retain direction; do not discard it just because the
+  interface-end names are not graph nodes. Preserve flow direction and keep
+  distinct item types inspectable. Do not promote unowned
   interface-end or definition features to peer parts; omit them when the
   projection does not connect them to a part, while retaining connector
   relationships that are projected between parts.
