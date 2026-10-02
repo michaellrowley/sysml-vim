@@ -26,9 +26,13 @@ corresponding adapter, client, workspace, and integration tests.
 - Preserve document synchronization and diagnostics for every requested
   document, including unsaved in-memory text. Keep the client reusable for the
   lifetime of persistent RPC where applicable, and close it cleanly.
-- Keep the package version pinned. A parser upgrade needs review of upstream
-  changes and tests against the real package; do not silently follow a moving
-  version.
+- Pin the parser to an explicit package version or Git ref. A Git branch is
+  moving by design; use it only when requested, document that choice, and use
+  a full commit SHA when reproducible installs are required. Review parser
+  changes and test against the real installed package.
+- When installing a source-only Git package, verify its install lifecycle
+  builds the expected server entry point; do not rely on an ignored or
+  unavailable prebuilt `dist/` directory.
 
 ## Verification and documentation
 

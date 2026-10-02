@@ -33,3 +33,11 @@ current behavior; link to `docs/` instead of duplicating reference material.
 The skills are part of the repository's agent-facing interface. Review them
 alongside the code and user docs when making broad architectural or workflow
 changes.
+
+## Agent change habits
+
+Copilot should create small, frequent commits after each independently
+complete, verified unit unless the user asks to leave changes uncommitted.
+Keep commits scoped to the task and exclude unrelated existing work. Write
+comments carefully: explain non-obvious intent and constraints, keep them
+accurate as code changes, and avoid narrating obvious implementation details.

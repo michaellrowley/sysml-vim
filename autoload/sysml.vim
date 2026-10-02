@@ -391,6 +391,9 @@ function! s:open_view_buffer(name, lines, session) abort
     if empty(maparg('[e', 'n'))
       nmap <buffer> [e <Plug>(sysml-graph-prev-edge)
     endif
+    if empty(maparg('<CR>', 'n'))
+      nmap <buffer> <CR> <Plug>(sysml-graph-inspect)
+    endif
     call s:select_graph_node(get(a:session, 'focus', ''))
   endif
 endfunction
@@ -795,13 +798,43 @@ function! sysml#_refresh_graph_highlights() abort
   call s:graph_highlight_selection()
 endfunction
 
-function! s:graph_set_cursor(line_number, column) abort
-  if line('.') == a:line_number && col('.') == a:column
-    return
+function! s:graph_reveal_cursor() abort
+  if foldclosed(line('.')) >= 0
+    normal! zv
   endif
+
+  let view = winsaveview()
+  let cursor_line = line('.')
+  let cursor_column = virtcol('.') - 1
+  let window_width = max([1, winwidth(0)])
+  let window_height = max([1, winheight(0)])
+  let left_column = get(view, 'leftcol', 0)
+  let top_line = line('w0')
+  let bottom_line = line('w$')
+
+  " CursorMoved may select an unchanged position after the graph was scrolled away.
+  if !&l:wrap
+        \ && (cursor_column < left_column
+        \ || cursor_column >= left_column + window_width)
+    let view.leftcol = max([0, cursor_column - (window_width - 1) / 2])
+  endif
+  if cursor_line < top_line || cursor_line > bottom_line
+    let view.topline = max([1, cursor_line - (window_height - 1) / 2])
+  endif
+  call winrestview(view)
+endfunction
+
+function! sysml#_graph_reveal_cursor() abort
+  if get(b:, 'sysml_view_method', '') ==# 'view_graph'
+    call s:graph_reveal_cursor()
+  endif
+endfunction
+
+function! s:graph_set_cursor(line_number, column) abort
   let b:sysml_graph_syncing = 1
   try
     call cursor(a:line_number, a:column)
+    call s:graph_reveal_cursor()
   finally
     let b:sysml_graph_syncing = 0
   endtry
@@ -845,6 +878,11 @@ function! s:graph_highlight_selection() abort
             \ && edge.relation ==# get(selection, 'relation', '')
             \ && edge.target ==# get(selection, 'target', '')
         call add(positions, [edge.line, 1, strlen(getline(edge.line))])
+        let route_cells = {}
+        for cell in s:graph_route_cells(edge)
+          call s:graph_add_cell(route_cells, cell[0], cell[1])
+        endfor
+        call extend(positions, s:graph_cell_positions(route_cells))
         break
       endif
     endfor
@@ -1032,11 +1070,16 @@ function! s:reflow_graph_buffer(buffer_number) abort
           for window_id in window_ids
             call win_execute(
                   \ window_id,
-                  \ printf('call cursor(%d, %d)', node.line, node.col)
+                  \ printf(
+                  \   'call cursor(%d, %d) | call sysml#_graph_reveal_cursor()',
+                  \   node.line,
+                  \   node.col
+                  \ )
                   \ )
           endfor
         elseif bufnr('%') == a:buffer_number
           call cursor(node.line, node.col)
+          call s:graph_reveal_cursor()
         endif
         break
       endif
@@ -1121,6 +1164,7 @@ function! sysml#graph_mouse_sync(...) abort
         if edge.line == current_line
           let b:sysml_graph_selection = {
                 \ 'kind': 'edge',
+                \ 'id': get(edge, 'id', ''),
                 \ 'source': edge.source,
                 \ 'relation': edge.relation,
                 \ 'target': edge.target
@@ -1139,6 +1183,7 @@ function! sysml#graph_mouse_sync(...) abort
     if s:edge_contains(edge, current_line, current_column)
       let b:sysml_graph_selection = {
             \ 'kind': 'edge',
+            \ 'id': get(edge, 'id', ''),
             \ 'source': edge.source,
             \ 'relation': edge.relation,
             \ 'target': edge.target
@@ -1147,6 +1192,81 @@ function! sysml#graph_mouse_sync(...) abort
       return
     endif
   endfor
+endfunction
+
+function! sysml#graph_inspect() abort
+  if get(b:, 'sysml_view_method', '') !=# 'view_graph'
+    echohl WarningMsg
+    echom 'sysml graph inspection is only available in a graph view'
+    echohl None
+    return
+  endif
+
+  call sysml#graph_mouse_sync()
+  let selection = get(b:, 'sysml_graph_selection', {})
+  let layout = s:graph_layout()
+  let inspection = []
+  if get(selection, 'kind', '') ==# 'node'
+    for node in layout.nodes
+      if (!empty(get(selection, 'id', '')) && node.id ==# selection.id)
+            \ || node.name ==# get(selection, 'name', '')
+        let inspection = get(node, 'inspection', [])
+        break
+      endif
+    endfor
+  elseif get(selection, 'kind', '') ==# 'edge'
+    for edge in layout.edges
+      if (!empty(get(selection, 'id', '')) && edge.id ==# selection.id)
+            \ || (edge.source ==# get(selection, 'source', '')
+            \ && edge.relation ==# get(selection, 'relation', '')
+            \ && edge.target ==# get(selection, 'target', ''))
+        let inspection = get(edge, 'inspection', [])
+        break
+      endif
+    endfor
+  endif
+
+  if type(inspection) != v:t_list || empty(inspection)
+    echohl WarningMsg
+    echom 'no projected inspection details for this graph element'
+    echohl None
+    return
+  endif
+
+  let source_buffer = bufnr('%')
+  let source_window = win_getid()
+  let inspection_name = 'sysml-inspect-' . source_buffer
+  let inspection_buffer = bufnr(inspection_name)
+  if inspection_buffer >= 0 && !empty(win_findbuf(inspection_buffer))
+    call win_gotoid(win_findbuf(inspection_buffer)[0])
+  elseif inspection_buffer >= 0
+    tabnew
+    execute 'buffer ' . inspection_buffer
+  else
+    tabnew
+    execute 'file ' . fnameescape(inspection_name)
+  endif
+  setlocal buftype=nofile bufhidden=wipe nobuflisted noswapfile
+  setlocal modifiable wrap linebreak
+  call setline(1, inspection)
+  if line('$') > len(inspection)
+    execute (len(inspection) + 1) . ',$delete _'
+  endif
+  setlocal nomodified nomodifiable
+  let b:sysml_inspection_source_buffer = source_buffer
+  let b:sysml_inspection_source_window = source_window
+  nnoremap <buffer> <silent> q :call sysml#graph_inspection_close()<CR>
+  nnoremap <buffer> <silent> <Esc> :call sysml#graph_inspection_close()<CR>
+endfunction
+
+function! sysml#graph_inspection_close() abort
+  let source_window = get(b:, 'sysml_inspection_source_window', -1)
+  tabclose
+  if source_window > 0 && win_gotoid(source_window) == 0
+    echohl WarningMsg
+    echom 'sysml inspection closed; the source graph window is no longer available'
+    echohl None
+  endif
 endfunction
 
 function! sysml#graph_move(direction) abort
@@ -1326,24 +1446,30 @@ function! sysml#graph_navigate(kind, direction) abort
   endif
 
   let current = [line('.'), col('.')]
+  let target = []
   if a:direction > 0
     for position in positions
       if position[0] > current[0] || (position[0] == current[0] && position[1] > current[1])
-        call cursor(position[0], position[1])
-        return
+        let target = position
+        break
       endif
     endfor
-    let target = positions[0]
+    if empty(target)
+      let target = positions[0]
+    endif
   else
     for position in reverse(copy(positions))
       if position[0] < current[0] || (position[0] == current[0] && position[1] < current[1])
-        call cursor(position[0], position[1])
-        return
+        let target = position
+        break
       endif
     endfor
-    let target = positions[-1]
+    if empty(target)
+      let target = positions[-1]
+    endif
   endif
   call cursor(target[0], target[1])
+  call s:graph_reveal_cursor()
 endfunction
 
 function! sysml#_schedule_view_refresh(source_buffer) abort

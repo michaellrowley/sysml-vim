@@ -729,6 +729,530 @@ def test_interconnection_view_uses_parts_ports_and_interface_edges():
         and edge["route_cells"]
         for edge in rendered["layout"]["edges"]
     )
+    ports = {
+        port["name"]: port
+        for node in rendered["layout"]["nodes"]
+        for port in node["ports"]
+    }
+    assert ports["outlet"]["side"] == "right"
+    assert ports["inlet"]["side"] == "left"
+    assert "●" in rendered["graph"]
+    alpha_inspection = nodes["Alpha"]["inspection"]
+    assert any("outlet [port usage]" in line for line in alpha_inspection)
+    assert not any("inlet [port usage]" in line for line in alpha_inspection)
+    graph_lines = rendered["graph"].splitlines()
+    for port in ports.values():
+        port_line = graph_lines[port["line"] - 1]
+        assert port_line.encode("utf-8")[
+            port["col"] - 1 : port["col"] - 1 + len("●".encode("utf-8"))
+        ].decode("utf-8") == "●"
+    connection = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+    assert connection["annotation"] == "ifConnect"
+    assert "Interface usage: ifConnect" in connection["inspection"]
+    assert any("outlet [port usage]" in line for line in connection["inspection"])
+    assert any("inlet [port usage]" in line for line in connection["inspection"])
+    assert "ifConnect" in "\n".join(
+        graph_lines[: rendered["layout"]["edge_header_line"] - 1]
+    )
+    assert connection["source_line"] == ports["outlet"]["line"]
+    assert connection["target_line"] == ports["inlet"]["line"]
+    assert [
+        connection["source_line"],
+        ports["outlet"]["display_col"] + 1,
+    ] in connection["route_cells"]
+    assert [
+        connection["target_line"],
+        ports["inlet"]["display_col"] - 1,
+    ] in connection["route_cells"]
+
+    dot = render_dot(view)
+    assert "shape=\"record\"" in dot
+    assert "● outlet : DataPort" in dot
+    assert "tailport=\"feature0\"" in dot
+    assert "headport=\"feature0\"" in dot
+
+    long_label = "a_connector_annotation_that_is_longer_than_the_viewport"
+    long_label_view = {
+        **view,
+        "edges": [
+            {
+                **edge,
+                "label": long_label,
+            }
+            if edge["relation"] == "connect"
+            else edge
+            for edge in view["edges"]
+        ],
+    }
+    narrow = render_graph_data(
+        long_label_view,
+        focus="bleTraceView",
+        depth=5,
+        max_width=35,
+    )
+    assert narrow["layout"]["width"] > 35
+    long_connection = next(
+        edge
+        for edge in narrow["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+    narrow_lines = narrow["graph"].splitlines()
+    annotation_line_number = next(
+        line_number
+        for line_number, line in enumerate(narrow_lines, 1)
+        if long_label in line
+    )
+    annotation_line = narrow_lines[annotation_line_number - 1]
+    annotation_column = (
+        _display_width(annotation_line[: annotation_line.index(long_label)]) + 1
+    )
+    assert all(
+        [annotation_line_number, annotation_column + offset]
+        in long_connection["route_cells"]
+        for offset in range(_display_width(long_label))
+    )
+
+
+def test_interconnection_view_marks_projected_item_flows_on_edges():
+    index = _standard_view_index("InterconnectionView")
+    symbols = index.symbols()
+    symbols.extend(
+        [
+            {
+                "name": "payloadOut",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 13, "col": 0, "end_col": 10},
+                "container": "Alpha",
+                "ancestors": ["System", "Alpha"],
+                "attributes": {"itemType": "Payload"},
+            },
+            {
+                "name": "payloadIn",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 14, "col": 0, "end_col": 9},
+                "container": "Beta",
+                "ancestors": ["System", "Beta"],
+                "attributes": {"itemType": "Payload"},
+            },
+        ]
+    )
+    reference = Reference(
+        name="payloadIn",
+        file="/workspace/model.sysml",
+        range=Range(14, 0, 9),
+        relation="item_flow",
+        source="payloadOut",
+    )
+    index.references_by_name[reference.name] = [reference]
+
+    view = build_view(index, "composition", focus="bleTraceView", depth=5)
+    rendered = render_graph_data(view, focus="bleTraceView", depth=5)
+
+    flow_edge = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    )
+    assert flow_edge["flow_item"] == "payloadIn : Payload"
+    connection = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+    connection_inspection = "\n".join(connection["inspection"])
+    assert "Interface usage: ifConnect" in connection_inspection
+    assert "payloadOut [item usage] : Payload" in connection_inspection
+    assert "payloadIn [item usage] : Payload" in connection_inspection
+    assert "payloadOut -[item_flow]-> payloadIn" in connection_inspection
+    assert flow_edge["annotation"] == "◆ payloadIn"
+    assert "◆" in rendered["graph"]
+    assert (
+        "- Alpha.payloadOut -[item_flow: payloadIn : Payload]-> "
+        "Beta.payloadIn"
+    ) in rendered["graph"]
+    graph_lines = rendered["graph"].splitlines()
+    graph_diagram = "\n".join(
+        graph_lines[: rendered["layout"]["edge_header_line"] - 1]
+    )
+    assert flow_edge["annotation"] in graph_diagram
+    annotation_line = next(
+        line_number
+        for line_number, line in enumerate(graph_lines, 1)
+        if flow_edge["annotation"] in line
+    )
+    annotation_column = (
+        graph_lines[annotation_line - 1].index(flow_edge["annotation"]) + 1
+    )
+    assert all(
+        [annotation_line, annotation_column + offset] in flow_edge["route_cells"]
+        for offset in range(_display_width(flow_edge["annotation"]))
+    )
+    assert any(
+        graph_lines[line - 1][column - 1] == "◆"
+        for line, column in flow_edge["route_cells"]
+    )
+    assert "item_flow: payloadIn : Payload" in render_dot(view)
+
+    narrow = render_graph_data(
+        view,
+        focus="bleTraceView",
+        depth=5,
+        max_width=30,
+    )
+    assert narrow["layout"]["width"] > 30
+    narrow_edge = next(
+        edge
+        for edge in narrow["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    )
+    narrow_lines = narrow["graph"].splitlines()
+    assert narrow_edge["annotation"] in "\n".join(
+        narrow_lines[: narrow["layout"]["edge_header_line"] - 1]
+    )
+
+
+def test_interconnection_view_projects_flow_endpoints_and_item_type():
+    index = _standard_view_index("InterconnectionView")
+    symbols = index.symbols()
+    symbols.extend(
+        [
+            {
+                "name": "payloadOut",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 13, "col": 0, "end_col": 10},
+                "container": "Alpha",
+                "ancestors": ["System", "Alpha"],
+                "attributes": {"itemType": "Payload"},
+            },
+            {
+                "name": "payloadIn",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 14, "col": 0, "end_col": 9},
+                "container": "Beta",
+                "ancestors": ["System", "Beta"],
+                "attributes": {"itemType": "Payload"},
+            },
+            {
+                "name": "packetFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 15, "col": 0, "end_col": 10},
+                "container": "ifConnect",
+                "ancestors": ["System", "ifConnect"],
+                "attributes": {
+                    "flowSource": "Alpha.payloadOut",
+                    "flowTarget": "Beta.payloadIn",
+                    "itemType": "Payload",
+                },
+            },
+            {
+                "name": "statusOut",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 16, "col": 0, "end_col": 9},
+                "container": "Alpha",
+                "ancestors": ["System", "Alpha"],
+                "attributes": {"itemType": "Status"},
+            },
+            {
+                "name": "statusIn",
+                "kind": "item_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 17, "col": 0, "end_col": 8},
+                "container": "Beta",
+                "ancestors": ["System", "Beta"],
+                "attributes": {"itemType": "Status"},
+            },
+            {
+                "name": "statusFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 18, "col": 0, "end_col": 10},
+                "container": "ifConnect",
+                "ancestors": ["System", "ifConnect"],
+                "attributes": {
+                    "flowSource": "Alpha.statusOut",
+                    "flowTarget": "Beta.statusIn",
+                    "itemType": "Status",
+                },
+            },
+        ]
+    )
+    reference = Reference(
+        name="payloadIn",
+        file="/workspace/model.sysml",
+        range=Range(15, 0, 10),
+        relation="item_flow",
+        source="payloadOut",
+    )
+    index.references_by_name[reference.name] = [reference]
+
+    view = build_view(index, "composition", focus="bleTraceView", depth=5)
+    rendered = render_graph_data(view, focus="bleTraceView", depth=5)
+    flow_edge = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    )
+    nodes = {node["name"]: node for node in rendered["layout"]["nodes"]}
+    connection = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+
+    assert flow_edge["source_id"] == nodes["Alpha"]["id"]
+    assert flow_edge["target_id"] == nodes["Beta"]["id"]
+    assert flow_edge["source_display"] == "Alpha.payloadOut"
+    assert flow_edge["target_display"] == "Beta.payloadIn"
+    assert flow_edge["source_feature"] == "payloadOut"
+    assert flow_edge["target_feature"] == "payloadIn"
+    assert flow_edge["flow_item"] == "Payload"
+    assert flow_edge["annotation"] == "◆ Payload"
+    connection_inspection = "\n".join(connection["inspection"])
+    assert (
+        "Alpha.payloadOut -[item_flow: Payload]-> Beta.payloadIn"
+        in connection_inspection
+    )
+    assert (
+        "Alpha.statusOut -[item_flow: Status]-> Beta.statusIn"
+        in connection_inspection
+    )
+    assert (
+        "- Alpha.payloadOut -[item_flow: Payload]-> Beta.payloadIn"
+    ) in rendered["graph"]
+    assert "item_flow: Payload" in render_dot(view)
+
+    narrow = render_graph_data(
+        view,
+        focus="bleTraceView",
+        depth=5,
+        max_width=30,
+    )
+    assert narrow["layout"]["width"] > 30
+    narrow_edge = next(
+        edge
+        for edge in narrow["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    )
+    narrow_lines = narrow["graph"].splitlines()
+    assert narrow_edge["annotation"] in "\n".join(
+        narrow_lines[: narrow["layout"]["edge_header_line"] - 1]
+    )
+
+
+def test_interconnection_view_maps_interface_definition_flows_to_connections():
+    index = _standard_view_index("InterconnectionView")
+    symbols = index.symbols()
+    interface_usage = next(
+        symbol for symbol in symbols if symbol["name"] == "ifConnect"
+    )
+    interface_usage["attributes"]["partType"] = "Link"
+    symbols.extend(
+        [
+            {
+                "name": "Link",
+                "kind": "interface_def",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 13, "col": 0, "end_col": 10},
+                "container": "System",
+                "ancestors": ["System"],
+                "attributes": {},
+            },
+            {
+                "name": "sourceEnd",
+                "kind": "port_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 14, "col": 0, "end_col": 9},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {"portType": "DataPort"},
+            },
+            {
+                "name": "targetEnd",
+                "kind": "port_usage",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 15, "col": 0, "end_col": 9},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {"portType": "DataPort"},
+            },
+            {
+                "name": "firstFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 16, "col": 0, "end_col": 10},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {
+                    "flowSource": "sourceEnd.payload",
+                    "flowTarget": "targetEnd.payload",
+                    "itemType": "Payload",
+                },
+            },
+            {
+                "name": "secondFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 17, "col": 0, "end_col": 11},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {
+                    "flowSource": "sourceEnd.status",
+                    "flowTarget": "targetEnd.status",
+                    "itemType": "Status",
+                },
+            },
+            {
+                "name": "reverseFlow",
+                "kind": "flow",
+                "file": "/workspace/model.sysml",
+                "range": {"line": 18, "col": 0, "end_col": 12},
+                "container": "Link",
+                "ancestors": ["System", "Link"],
+                "attributes": {
+                    "flowSource": "targetEnd.returnData",
+                    "flowTarget": "sourceEnd.returnData",
+                    "itemType": "Response",
+                },
+            },
+        ]
+    )
+
+    view = build_view(index, "composition", focus="bleTraceView", depth=5)
+    rendered = render_graph_data(view, focus="bleTraceView", depth=5)
+    nodes = {node["name"]: node for node in rendered["layout"]["nodes"]}
+    flow_edges = [
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "item_flow"
+    ]
+    connection = next(
+        edge
+        for edge in rendered["layout"]["edges"]
+        if edge["relation"] == "connect"
+    )
+
+    assert {edge["flow_item"] for edge in flow_edges} == {
+        "Payload",
+        "Status",
+        "Response",
+    }
+    forward_flows = [edge for edge in flow_edges if edge["flow_item"] != "Response"]
+    reverse_flow = next(
+        edge for edge in flow_edges if edge["flow_item"] == "Response"
+    )
+    assert all(
+        edge["source_id"] == nodes["Alpha"]["id"] for edge in forward_flows
+    )
+    assert all(
+        edge["target_id"] == nodes["Beta"]["id"] for edge in forward_flows
+    )
+    assert all(edge["source_display"] == "Alpha.outlet" for edge in forward_flows)
+    assert all(edge["target_display"] == "Beta.inlet" for edge in forward_flows)
+    assert reverse_flow["source_id"] == nodes["Beta"]["id"]
+    assert reverse_flow["target_id"] == nodes["Alpha"]["id"]
+    assert reverse_flow["source_display"] == "Beta.inlet"
+    assert reverse_flow["target_display"] == "Alpha.outlet"
+    assert len({edge["id"] for edge in flow_edges}) == 3
+    assert len({edge["line"] for edge in flow_edges}) == 3
+    connection_inspection = "\n".join(connection["inspection"])
+    assert (
+        "Alpha.outlet -[item_flow: Payload]-> Beta.inlet"
+        in connection_inspection
+    )
+    assert (
+        "Alpha.outlet -[item_flow: Status]-> Beta.inlet"
+        in connection_inspection
+    )
+    assert (
+        "Beta.inlet -[item_flow: Response]-> Alpha.outlet"
+        in connection_inspection
+    )
+    assert "◆ Payload" in rendered["graph"]
+    assert "◆ Status" in rendered["graph"]
+    assert "◆ Response" in rendered["graph"]
+    ports = {
+        port["name"]: port
+        for node in nodes.values()
+        for port in node["ports"]
+    }
+    assert ports["outlet"]["side"] == "right"
+    assert ports["inlet"]["side"] == "left"
+    assert all(
+        len(
+            [
+                port
+                for port in node["ports"]
+                if port["name"] in {"outlet", "inlet"}
+            ]
+        )
+        == 1
+        for node in nodes.values()
+    )
+    annotation_width = max(
+        _display_width(edge["annotation"])
+        for edge in [connection, *flow_edges]
+    )
+    assert (
+        nodes["Beta"]["left"] - nodes["Alpha"]["right"] - 1
+        <= annotation_width + 4
+    )
+    diagram_lines = rendered["graph"].splitlines()[
+        : rendered["layout"]["edge_header_line"] - 1
+    ]
+    for edge in [connection, *flow_edges]:
+        route_cells = {tuple(cell) for cell in edge["route_cells"]}
+        source_port = ports[edge["source_feature"]]
+        target_port = ports[edge["target_feature"]]
+        source_column = source_port["display_col"] + (
+            1 if source_port["side"] == "right" else -1
+        )
+        target_column = target_port["display_col"] + (
+            1 if target_port["side"] == "right" else -1
+        )
+        assert (source_port["line"], source_column) in route_cells
+        assert (target_port["line"], target_column) in route_cells
+        target_arrow = (
+            "▶" if target_port["side"] == "left" else "◀"
+        )
+        assert (
+            diagram_lines[target_port["line"] - 1][target_column - 1]
+            == target_arrow
+        )
+
+    annotation_spans: dict[int, list[tuple[int, int]]] = {}
+    for annotation in [
+        connection["annotation"],
+        *(edge["annotation"] for edge in flow_edges),
+    ]:
+        location = next(
+            (
+                (line_number, line.find(annotation))
+                for line_number, line in enumerate(diagram_lines)
+                if annotation in line
+            ),
+            None,
+        )
+        assert location is not None
+        line_number, character_column = location
+        start = _display_width(diagram_lines[line_number][:character_column])
+        end = start + _display_width(annotation) - 1
+        annotation_spans.setdefault(line_number, []).append((start, end))
+    for spans in annotation_spans.values():
+        spans.sort()
+        assert all(
+            right_start > left_end + 1
+            for (_, left_end), (right_start, _) in zip(spans, spans[1:])
+        )
 
 
 def test_interconnection_view_resolves_ports_through_part_usage_types():

@@ -20,6 +20,18 @@ tests, verify the behavior, correct the skill if it is stale, and follow the
 verified behavior. Preserve the repository's explicit parser boundary and
 conformance limits.
 
+## Commit and comment discipline
+
+- Keep commits small and frequent. For multi-step work, commit each
+  independently complete, verified unit promptly rather than collecting all
+  finished work into one large final commit, unless the user asks to leave work
+  uncommitted. Keep each commit limited to the task's changes; never include
+  unrelated pre-existing work or commit an incomplete or unverified change.
+- Comment meticulously where explanation matters: record non-obvious intent,
+  invariants, edge cases, tradeoffs, and side effects. Keep comments accurate
+  and update or remove them when behavior changes. Do not add comments that
+  merely narrate obvious code.
+
 Keep the skills accurate as the project evolves. When a change alters an
 invariant, workflow, supported interface, test strategy, or other guidance
 captured by a skill, update the affected skill in the same change. When a user

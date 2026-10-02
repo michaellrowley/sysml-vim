@@ -27,6 +27,13 @@ affected user documentation and the relevant skill in the same change. Check
 README, `docs/`, and Vim help where their content is affected; keep CLI, RPC,
 and editor surfaces consistent.
 
+For multi-step work, make small, frequent commits after independently
+complete, verified units unless the user asks to leave changes uncommitted.
+Keep each commit scoped to the task; do not bundle unrelated work or commit an
+incomplete or unverified state. Comments should thoroughly explain non-obvious
+intent, invariants, edge cases, tradeoffs, and side effects, remain accurate
+after code changes, and avoid narrating what the code already makes clear.
+
 When a test, user correction, or review exposes an agent mistake:
 
 1. Verify the root cause against the implementation and tests.

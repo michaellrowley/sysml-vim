@@ -117,6 +117,220 @@ def _view_connection_edges(
     return edges, rendered_connections
 
 
+def _projected_item_flow_edges(
+    symbols: list[dict[str, Any]],
+    connection_edges: list[dict[str, Any]],
+    refs: list[Reference],
+) -> list[dict[str, Any]]:
+    def endpoint(path: Any) -> tuple[str, str | None] | None:
+        if not isinstance(path, str) or not path.strip():
+            return None
+        components = [
+            component.rsplit("::", 1)[-1].strip()
+            for component in path.split(".")
+            if component.strip()
+        ]
+        if not components:
+            return None
+        return (
+            components[-2] if len(components) > 1 else components[0],
+            components[-1] if len(components) > 1 else None,
+        )
+
+    def direct_child(
+        symbol: dict[str, Any],
+        parent: dict[str, Any],
+    ) -> bool:
+        if (
+            symbol.get("container") != parent.get("name")
+            or symbol.get("file") != parent.get("file")
+        ):
+            return False
+        parent_ancestors = parent.get("ancestors", ())
+        symbol_ancestors = symbol.get("ancestors", ())
+        if not isinstance(parent_ancestors, (list, tuple)):
+            parent_ancestors = ()
+        if not isinstance(symbol_ancestors, (list, tuple)):
+            symbol_ancestors = ()
+        return not symbol_ancestors or tuple(symbol_ancestors) == (
+            *parent_ancestors,
+            parent["name"],
+        )
+
+    def usage_type_definitions(
+        usage: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        pending = _projected_type_names(usage)
+        visited = set()
+        definitions = []
+        while pending:
+            type_name = pending.pop(0)
+            for definition in _projected_type_candidates(
+                symbols,
+                type_name,
+                usage.get("file"),
+            ):
+                if definition.get("kind", "").lower() not in {
+                    "interface_def",
+                    "interface_definition",
+                }:
+                    continue
+                identity = _symbol_identity(definition)
+                if identity in visited:
+                    continue
+                visited.add(identity)
+                definitions.append(definition)
+                pending.extend(_projected_type_names(definition))
+                pending.extend(_definition_specializations(definition, refs))
+        return definitions
+
+    def flow_usage_endpoints(
+        flow: dict[str, Any],
+    ) -> tuple[tuple[str, str | None], tuple[str, str | None]] | None:
+        attributes = flow.get("attributes", {})
+        if not isinstance(attributes, dict):
+            return None
+        source = endpoint(attributes.get("flowSource"))
+        target = endpoint(attributes.get("flowTarget"))
+        return (source, target) if source and target else None
+
+    def flow_item(flow: dict[str, Any]) -> str | None:
+        attributes = flow.get("attributes", {})
+        if not isinstance(attributes, dict):
+            return None
+        item_type = attributes.get("itemType")
+        if isinstance(item_type, str) and item_type.strip():
+            return item_type.rsplit("::", 1)[-1].strip()
+        return None
+
+    flow_symbols = [
+        symbol
+        for symbol in symbols
+        if symbol.get("kind", "").lower() in {"flow", "flow_usage"}
+    ]
+    interface_definitions = [
+        symbol
+        for symbol in symbols
+        if symbol.get("kind", "").lower()
+        in {"interface_def", "interface_definition"}
+    ]
+    direct_flows = []
+    for flow in flow_symbols:
+        if any(direct_child(flow, definition) for definition in interface_definitions):
+            continue
+        endpoints = flow_usage_endpoints(flow)
+        if endpoints is None:
+            continue
+        edge: dict[str, Any] = {
+            "source": endpoints[0][0],
+            "target": endpoints[1][0],
+            "relation": "item_flow",
+            "file": flow.get("file", ""),
+            "range": flow.get("range", {}),
+        }
+        if endpoints[0][1]:
+            edge["source_feature"] = endpoints[0][1]
+        if endpoints[1][1]:
+            edge["target_feature"] = endpoints[1][1]
+        item = flow_item(flow)
+        if item:
+            edge["flow_item"] = item
+        direct_flows.append(edge)
+
+    interface_flows = []
+    for connection in connection_edges:
+        connection_name = connection.get("label")
+        if not isinstance(connection_name, str):
+            continue
+        usage_candidates = [
+            symbol
+            for symbol in symbols
+            if symbol.get("name") == connection_name
+            and symbol.get("kind", "").lower() == "interface"
+            and symbol.get("file") == connection.get("file")
+        ]
+        if len(usage_candidates) > 1:
+            connection_line = connection.get("range", {}).get("line")
+            if isinstance(connection_line, int):
+                usage_candidates = [
+                    min(
+                        usage_candidates,
+                        key=lambda usage: abs(
+                            usage.get("range", {}).get("line", 0)
+                            - connection_line
+                        ),
+                    )
+                ]
+        if len(usage_candidates) != 1:
+            continue
+
+        for definition in usage_type_definitions(usage_candidates[0]):
+            end_ports = [
+                symbol
+                for symbol in symbols
+                if symbol.get("kind", "").lower() == "port_usage"
+                and direct_child(symbol, definition)
+            ]
+            end_ports.sort(
+                key=lambda port: (
+                    port.get("range", {}).get("line", 0),
+                    port.get("range", {}).get("col", 0),
+                )
+            )
+            # The projection omits end bindings, so pair two direct ends with
+            # connect endpoints in declaration order; larger interfaces are ambiguous.
+            if len(end_ports) != 2:
+                continue
+            first_end, second_end = (port["name"] for port in end_ports)
+            for flow in flow_symbols:
+                if not direct_child(flow, definition):
+                    continue
+                endpoints = flow_usage_endpoints(flow)
+                if endpoints is None:
+                    continue
+                if (
+                    endpoints[0][0] == first_end
+                    and endpoints[1][0] == second_end
+                ):
+                    source, target = (
+                        connection.get("source"),
+                        connection.get("target"),
+                    )
+                    source_feature = connection.get("source_feature")
+                    target_feature = connection.get("target_feature")
+                elif (
+                    endpoints[0][0] == second_end
+                    and endpoints[1][0] == first_end
+                ):
+                    source, target = (
+                        connection.get("target"),
+                        connection.get("source"),
+                    )
+                    source_feature = connection.get("target_feature")
+                    target_feature = connection.get("source_feature")
+                else:
+                    continue
+                if not isinstance(source, str) or not isinstance(target, str):
+                    continue
+                edge = {
+                    "source": source,
+                    "target": target,
+                    "relation": "item_flow",
+                    "file": flow.get("file", ""),
+                    "range": flow.get("range", {}),
+                }
+                if isinstance(source_feature, str):
+                    edge["source_feature"] = source_feature
+                if isinstance(target_feature, str):
+                    edge["target_feature"] = target_feature
+                item = flow_item(flow)
+                if item:
+                    edge["flow_item"] = item
+                interface_flows.append(edge)
+
+    return [*direct_flows, *interface_flows]
+
+
 def _symbol_qualified_path(symbol: dict[str, Any]) -> tuple[str, ...]:
     ancestors = symbol.get("ancestors", ())
     if not isinstance(ancestors, (list, tuple)):
@@ -732,6 +946,12 @@ def _view_composition(
         exposed_names,
         filter_kinds,
     )
+    if presentation == "interconnection":
+        # Prefer FlowUsage attributes when reference queries echo the same edge.
+        edges = [
+            *_projected_item_flow_edges(symbols, connection_edges, refs),
+            *edges,
+        ]
     edges.extend(connection_edges)
     for symbol in symbols:
         attributes = symbol.get("attributes", {})
@@ -1050,6 +1270,7 @@ def render_dot(view: dict[str, Any]) -> str:
             node.get("name"): node_ids.get(node.get("id"))
             for node in graph_layout.get("nodes", [])
         }
+        feature_ports: dict[tuple[str, str], str] = {}
         for node in graph_layout.get("nodes", []):
             label_lines = [
                 str(node.get("name", "")),
@@ -1057,28 +1278,55 @@ def render_dot(view: dict[str, Any]) -> str:
             ]
             if node.get("display_type"):
                 label_lines.append(f": {node['display_type']}")
-            feature_labels = [
-                feature.get("label", "")
+            node_features = [
+                feature
                 for feature in node.get("features", [])
                 if feature.get("label")
             ]
-            if feature_labels:
-                label_lines.append("\\n".join(feature_labels))
-            shape = {
-                "interconnection": "box",
-                "action_flow": (
-                    "ellipse"
-                    if "action" in str(node.get("kind", "")).lower()
-                    else "box"
-                ),
-                "state_transition": "box",
-                "sequence": "plaintext",
-                "geometry": "ellipse",
-                "grid": "record",
-                "browser": "plaintext",
-            }.get(presentation, "box")
+            if presentation == "interconnection" and node_features:
+                feature_fields = []
+                for feature_index, feature in enumerate(node_features):
+                    port_id = f"feature{feature_index}"
+                    feature_ports[(node.get("id", ""), feature.get("name", ""))] = (
+                        port_id
+                    )
+                    feature_label = str(feature["label"])
+                    if feature.get("kind", "").lower() == "port_usage":
+                        feature_label = f"● {feature_label}"
+                    feature_fields.append(
+                        f"<{port_id}>{_dot_record_escape(feature_label)}"
+                    )
+                node_label = (
+                    "{"
+                    + _dot_record_escape("\n".join(label_lines))
+                    + "|{"
+                    + "|".join(feature_fields)
+                    + "}}"
+                )
+                shape = "record"
+            else:
+                feature_labels = [
+                    feature.get("label", "")
+                    for feature in node_features
+                ]
+                if feature_labels:
+                    label_lines.append("\\n".join(feature_labels))
+                node_label = chr(10).join(label_lines)
+                shape = {
+                    "interconnection": "box",
+                    "action_flow": (
+                        "ellipse"
+                        if "action" in str(node.get("kind", "")).lower()
+                        else "box"
+                    ),
+                    "state_transition": "box",
+                    "sequence": "plaintext",
+                    "geometry": "ellipse",
+                    "grid": "record",
+                    "browser": "plaintext",
+                }.get(presentation, "box")
             attributes = [
-                f"label={_dot_quote(chr(10).join(label_lines))}",
+                f"label={_dot_quote(node_label)}",
                 f"shape={_dot_quote(shape)}",
             ]
             if presentation == "geometry" and isinstance(
@@ -1102,6 +1350,9 @@ def render_dot(view: dict[str, Any]) -> str:
             if not source or not target:
                 continue
             relation = str(edge.get("label") or edge.get("relation", "related"))
+            flow_item = edge.get("flow_item")
+            if flow_item:
+                relation = f"{relation}: {flow_item}"
             source_feature = edge.get("source_feature")
             target_feature = edge.get("target_feature")
             if source_feature or target_feature:
@@ -1119,6 +1370,12 @@ def render_dot(view: dict[str, Any]) -> str:
                 else ""
             )
             attributes = [f"label={_dot_quote(relation)}"]
+            source_port = feature_ports.get((source_id, source_feature or ""))
+            target_port = feature_ports.get((target_id, target_feature or ""))
+            if source_port:
+                attributes.append(f"tailport={_dot_quote(source_port)}")
+            if target_port:
+                attributes.append(f"headport={_dot_quote(target_port)}")
             if edge_style:
                 attributes.append(edge_style)
             lines.append(
@@ -1157,6 +1414,13 @@ def _dot_quote(text: str) -> str:
         .replace("\n", "\\n")
     )
     return f'"{escaped}"'
+
+
+def _dot_record_escape(text: str) -> str:
+    escaped = text.replace("\\", "\\\\")
+    for character in ("{", "}", "<", ">", "|"):
+        escaped = escaped.replace(character, f"\\{character}")
+    return escaped
 
 
 def render_svg(view: dict[str, Any]) -> str:

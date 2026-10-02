@@ -141,9 +141,19 @@ if get(s:selection_match, 'pos1', []) !=# [
 endif
 if empty(maparg(']n', 'n')) || empty(maparg('[n', 'n'))
       \ || empty(maparg(']e', 'n')) || empty(maparg('[e', 'n'))
+      \ || empty(maparg('<CR>', 'n'))
       \ || empty(maparg('<Left>', 'n')) || empty(maparg('<Right>', 'n'))
       \ || empty(maparg('<Up>', 'n')) || empty(maparg('<Down>', 'n'))
   cquit 14
+endif
+call cursor(s:selected_node.line, s:selected_node.col)
+call sysml#graph_inspect()
+if bufname('%') !~# '^sysml-inspect-' || getline(1) !~# '^Element: '
+  cquit 42
+endif
+call sysml#graph_inspection_close()
+if bufnr('%') != s:graph_buffer
+  cquit 43
 endif
 call cursor(1, 1)
 normal ]n
@@ -192,6 +202,33 @@ for s:graph_line in range(3, s:edge_header_line - 1)
 endfor
 if !s:edge_route_selected
   cquit 23
+endif
+let s:edge_route_highlighted = 0
+for s:match in getmatches()
+  if s:match.group !=# 'SysmlGraphSelection'
+    continue
+  endif
+  for s:match_index in range(1, 8)
+    let s:position = get(s:match, 'pos' . s:match_index, [])
+    if !empty(s:position) && s:position[0] < s:edge_header_line
+      let s:edge_route_highlighted = 1
+      break
+    endif
+  endfor
+  if s:edge_route_highlighted
+    break
+  endif
+endfor
+if !s:edge_route_highlighted
+  cquit 41
+endif
+call sysml#graph_inspect()
+if bufname('%') !~# '^sysml-inspect-' || getline(1) !~# '^Edge: '
+  cquit 44
+endif
+call sysml#graph_inspection_close()
+if bufnr('%') != s:graph_buffer
+  cquit 45
 endif
 call cursor(1, 1)
 normal ]n
@@ -408,6 +445,76 @@ endif
 normal zR
 if foldclosed(s:browser_leaf_line) >= 0
   cquit 40
+endif
+
+tabnew
+setlocal buftype=nofile bufhidden=wipe noswapfile nowrap
+let b:sysml_view_method = 'view_graph'
+let b:sysml_graph_layout = {
+      \ 'nodes': [
+      \   {
+      \     'id': 'viewport-source',
+      \     'name': 'Source',
+      \     'top': 1,
+      \     'bottom': 3,
+      \     'left': 1,
+      \     'right': 16,
+      \     'line': 2,
+      \     'col': 5
+      \   },
+      \   {
+      \     'id': 'viewport-target',
+      \     'name': 'Target',
+      \     'top': 29,
+      \     'bottom': 31,
+      \     'left': 181,
+      \     'right': 196,
+      \     'line': 30,
+      \     'col': 185
+      \   }
+      \ ],
+      \ 'edges': []
+      \ }
+let s:viewport_lines = repeat([''], 40)
+let s:viewport_lines[1] = '│ Source: part │'
+let s:viewport_lines[29] = repeat(' ', 180) . '│ Target: part │'
+let s:viewport_lines[37] = 'Edges:'
+let s:viewport_lines[38] = '- Source -[flow]-> Target'
+call setline(1, s:viewport_lines)
+call cursor(2, 5)
+let b:sysml_graph_selection = {
+      \ 'kind': 'node',
+      \ 'id': 'viewport-source',
+      \ 'name': 'Source'
+      \ }
+call sysml#graph_move('right')
+if get(get(b:, 'sysml_graph_selection', {}), 'name', '') !=# 'Target'
+  cquit 46
+endif
+let s:offscreen_view = winsaveview()
+let s:offscreen_view.topline = 1
+let s:offscreen_view.leftcol = 0
+call winrestview(s:offscreen_view)
+call sysml#graph_mouse_sync()
+let s:revealed_view = winsaveview()
+if line('.') < line('w0') || line('.') > line('w$')
+      \ || virtcol('.') - 1 < s:revealed_view.leftcol
+      \ || virtcol('.') - 1 >= s:revealed_view.leftcol + winwidth(0)
+  cquit 47
+endif
+
+call cursor(39, 3)
+let s:offscreen_view = winsaveview()
+let s:offscreen_view.topline = 1
+let s:offscreen_view.leftcol = 150
+call winrestview(s:offscreen_view)
+call sysml#graph_navigate('edge', 1)
+let s:revealed_view = winsaveview()
+if line('.') != 39 || col('.') != 3
+      \ || line('.') < line('w0') || line('.') > line('w$')
+      \ || virtcol('.') - 1 < s:revealed_view.leftcol
+      \ || virtcol('.') - 1 >= s:revealed_view.leftcol + winwidth(0)
+  cquit 48
 endif
 
 call delete(s:workspace_b, 'rf')

@@ -27,7 +27,14 @@ Inspect the relevant files among `plugin/sysml.vim`, `autoload/sysml.vim`,
   consistent with the documented commands.
 - Keep graph-json geometry and presentation metadata aligned with Vim hit
   testing; hierarchy presentations may use indent folds but must preserve
-  source navigation and graph refresh behavior.
+  source navigation and graph refresh behavior. Selecting an edge by route or
+  with `]e` / `[e` should highlight both its route and edge-list entry; test
+  route-cell geometry as well as selection identity. Programmatic graph
+  navigation must reveal the selected position in both axes, including when
+  the cursor is already there but the view has since scrolled away. Use
+  backend-provided graph inspection metadata for selected nodes and edges;
+  Vimscript should present projected details rather than reimplement model
+  analysis.
 - Consider both Vim and Neovim. Validate command registration and run the
   relevant Vim smoke tests; update Neovim-specific behavior/tests when touched.
 

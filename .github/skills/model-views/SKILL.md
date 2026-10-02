@@ -33,13 +33,33 @@ relevant projection/rendering code in `render.py` or `diagram.py`.
   that depends on partial LSP attributes or relationships.
 - For interconnection diagrams, keep projected features with their part owner.
   Follow projected part-usage/type-definition chains for declared features and
-  attach those features to the exposed part usage. Do not promote unowned
+  attach those features to the exposed part usage. Mark projected ports on the
+  node border and route supported connection edges to those markers; annotate
+  projected item-flow relationships with their item when available. Prefer
+  FlowUsage `flowSource`, `flowTarget`, and `itemType` projection attributes
+  over references when constructing item-flow edges, since endpoint paths may
+  not resolve as declaration-name references. When a flow is declared inside
+  an interface definition, map its two projected end ports through each visible
+  typed interface usage to that connector's concrete endpoints, using
+  declaration order to retain direction; do not discard it just because the
+  interface-end names are not graph nodes. Preserve flow direction and keep
+  distinct item types inspectable. Do not promote unowned
   interface-end or definition features to peer parts; omit them when the
   projection does not connect them to a part, while retaining connector
-  relationships that are projected between parts.
+  relationships that are projected between parts. Choose port sides from
+  node placement rather than flow direction so reverse flows use the same
+  physical endpoints. Route same-rank nodes through their facing borders.
 - Structural graph output is also consumed by editor navigation and highlighting.
   Preserve stable node/edge identity and valid geometry when changing its
   structured output; account for terminal display width when laying out text.
+  Size each adjacent-rank gap for its widest annotation, not the sum of all
+  labels, and put parallel edge labels on separate route lanes. Route
+  annotations must remain part of their edge geometry; grow the layout beyond
+  a requested viewport width instead of omitting or truncating labels. Route
+  hit cells must support highlighting the selected edge path as well as its
+  entry. Graph inspection details should derive from the selected projected
+  nodes and relationships, preserve nested feature ownership, and remain clear
+  that they describe only the available projection.
 
 ## Tests
 

@@ -1,14 +1,14 @@
 # SysML v2 language-server integration
 
-sysml-vim delegates textual parsing, diagnostics, document symbols, references, and model projections to [`daltskin/sysml-v2-lsp`](https://github.com/daltskin/sysml-v2-lsp). Its TypeScript server uses generated ANTLR parser code based on the community [`daltskin/sysml-v2-grammar`](https://github.com/daltskin/sysml-v2-grammar), which translates OMG SysML and KerML textual KEBNF. sysml-vim contains no SysML grammar or local subset-parser fallback.
+sysml-vim delegates textual parsing, diagnostics, document symbols, references, and model projections to [`michaellrowley/sysml-v2-lsp`](https://github.com/michaellrowley/sysml-v2-lsp/tree/feat/flow-usage-projection), currently tracking its `feat/flow-usage-projection` branch. This fork adds projected item-flow symbols with payload types and endpoint paths. Its TypeScript server uses generated ANTLR parser code based on the community [`daltskin/sysml-v2-grammar`](https://github.com/daltskin/sysml-v2-grammar), which translates OMG SysML and KerML textual KEBNF. sysml-vim contains no SysML grammar or local subset-parser fallback.
 
 This is a third-party parser integration, not the OMG Pilot or an official OMG SDK. The LSP project also implements its own semantic checks and a selected model projection. Those checks are not equivalent to the Pilot validator, and neither the parser bridge nor the sysml-vim index claims complete normative SysML 2.0/KerML 1.0 conformance.
 
 ## Requirements and installation
 
 - Python 3.11 or newer for the sysml-vim backend.
-- Node.js 20 or newer and npm for the language server.
-- `sysml-v2-lsp` npm package version `0.31.0` (the default pinned by the installer).
+- Node.js 20 or newer, npm, and Git for installing and building the language server from its GitHub source.
+- The `michaellrowley/sysml-v2-lsp` `feat/flow-usage-projection` branch (package version `0.32.0`).
 
 Install the package into a user data directory:
 
@@ -17,9 +17,15 @@ npm install \
   --prefix "$HOME/.local/share/sysml-vim/lsp" \
   --no-save \
   --no-package-lock \
-  --ignore-scripts \
-  sysml-v2-lsp@0.31.0
+  --no-audit \
+  --no-fund \
+  'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
 ```
+
+The Git dependency's `prepare` script compiles the server entry point from
+source. For a reproducible snapshot rather than the moving branch default,
+override `SYSML_LSP_PACKAGE_SPEC` with the same Git URL and a full commit SHA.
+The automated installer uses this branch by default.
 
 The Python backend discovers this default server path:
 
@@ -55,7 +61,7 @@ The adapter checks the package version, requested files, document versions, sour
 
 ## Scope and limitations
 
-- The ANTLR grammar is a community translation of OMG KEBNF with project-maintained patches. Pin and test a package version rather than updating a moving branch during installation.
+- The ANTLR grammar is a community translation of OMG KEBNF with project-maintained patches. The default Git ref tracks the requested flow-projection branch; use a full commit SHA through `SYSML_LSP_PACKAGE_SPEC` for reproducible installs, and test parser changes against the actual package.
 - Syntax parsing does not by itself provide semantic conformance. The LSP semantic checks are independently implemented and may be incomplete or produce diagnostics that differ from the Pilot.
 - The `sysml/model` custom request returns a selected projection, not a complete SysML/KerML semantic model. Some relationships and source locations may not be exposed by that projection.
 - The grammar can lag an OMG release or have known translation/error-recovery gaps. A passing parse is not proof that a model satisfies every normative rule.

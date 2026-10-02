@@ -41,7 +41,7 @@ def test_workspace_snapshot_detects_model_file_changes(tmp_path):
             return {
                 "parser": {
                     "name": "SysML v2 Language Server (ANTLR)",
-                    "version": "0.31.0",
+                    "version": "0.32.0",
                     "standards": [
                         "SysML v2 textual grammar derived from OMG KEBNF",
                         "KerML textual grammar derived from OMG KEBNF",
@@ -83,7 +83,7 @@ def test_workspace_indexes_unsaved_and_new_document_overrides(tmp_path):
             return {
                 "parser": {
                     "name": "SysML v2 Language Server (ANTLR)",
-                    "version": "0.31.0",
+                    "version": "0.32.0",
                     "standards": [
                         "SysML v2 textual grammar derived from OMG KEBNF",
                         "KerML textual grammar derived from OMG KEBNF",
