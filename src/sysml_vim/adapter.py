@@ -40,12 +40,16 @@ class SysMLLspAdapter:
         if configured_path:
             return Path(configured_path).expanduser().resolve()
 
-        data_home = Path(
-            os.getenv("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
-        ).expanduser()
+        install_root = os.getenv("SYSML_VIM_INSTALL_ROOT", "").strip()
+        if install_root:
+            data_root = Path(install_root).expanduser()
+        else:
+            data_home = Path(
+                os.getenv("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+            ).expanduser()
+            data_root = data_home / "sysml-vim"
         installed_server = (
-            data_home
-            / "sysml-vim"
+            data_root
             / "lsp"
             / "node_modules"
             / "sysml-v2-lsp"
@@ -140,6 +144,7 @@ class SysMLLspAdapter:
             "env": {
                 "SYSML_LSP_SERVER": bool(os.getenv("SYSML_LSP_SERVER")),
                 "SYSML_LSP_COMMAND": bool(self.command_override),
+                "SYSML_VIM_INSTALL_ROOT": bool(os.getenv("SYSML_VIM_INSTALL_ROOT")),
             },
             "notes": [
                 "the server uses a grammar-derived parser and its own semantic checks",
@@ -152,8 +157,9 @@ class SysMLLspAdapter:
     def _configuration_error() -> str:
         return (
             "SysML v2 parsing is unavailable: install sysml-v2-lsp from "
-            "michaellrowley/sysml-v2-lsp#feat/flow-usage-projection and set "
-            "SYSML_LSP_SERVER to its dist/server/server.js entry point. "
+            "michaellrowley/sysml-v2-lsp#feat/flow-usage-projection; set "
+            "SYSML_LSP_SERVER to its server.js path or "
+            "SYSML_VIM_INSTALL_ROOT to the sysml-vim data root. "
             "No local subset parser or fallback is provided."
         )
 

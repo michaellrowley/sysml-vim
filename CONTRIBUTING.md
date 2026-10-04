@@ -3,16 +3,17 @@
 ## Development workflow
 
 1. Create a branch
-2. Install dev deps: `python -m pip install -e .[dev]`
-3. Run tests: `pytest -q`
-4. Run Vim/Neovim smoke checks
+2. Follow the dedicated-environment setup in [the development guide](docs/development.md)
+3. Run tests with that environment's Python:
+   `"$SYSML_VIM_INSTALL_ROOT/venv/bin/python" -m pytest -q`
+4. Run the Vim/Neovim smoke checks from [the development guide](docs/development.md)
 5. Submit PR with test output and capability/conformance impact
 
 The default tests isolate the backend with a static LSP protocol test double. For changes to the parser adapter or model projection, install the pinned language server as described in [the parser setup](docs/lsp-parser.md), then run the real-package integration test:
 
 ```sh
-SYSML_LSP_SERVER="$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js" \
-  pytest -q tests/test_lsp_integration.py
+SYSML_LSP_SERVER="$SYSML_VIM_INSTALL_ROOT/lsp/node_modules/sysml-v2-lsp/dist/server/server.js" \
+  "$SYSML_VIM_INSTALL_ROOT/venv/bin/python" -m pytest -q tests/test_lsp_integration.py
 ```
 
 ## Standards alignment

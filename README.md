@@ -74,16 +74,19 @@ Checked on 2026-10-02:
 ## Quick start
 
 ```bash
-python3 -m pip install -e .
-npm install --prefix "$HOME/.local/share/sysml-vim/lsp" --no-save --no-package-lock --no-audit --no-fund 'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
-export SYSML_LSP_SERVER="$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
-sysml health --path .
-sysml parser-status
-sysml check tests/fixtures/workspace
-sysml view composition --path tests/fixtures/workspace --format text
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+install_root=${SYSML_VIM_INSTALL_ROOT:-"$data_home/sysml-vim"}
+python3 -m venv "$install_root/venv"
+"$install_root/venv/bin/python" -m pip install -e .
+npm install --prefix "$install_root/lsp" --no-save --no-package-lock --no-audit --no-fund 'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
+export SYSML_LSP_SERVER="$install_root/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
+"$install_root/venv/bin/sysml" health --path .
+"$install_root/venv/bin/sysml" parser-status
+"$install_root/venv/bin/sysml" check tests/fixtures/workspace
+"$install_root/venv/bin/sysml" view composition --path tests/fixtures/workspace --format text
 ```
 
-The language server requires Node.js 20 or newer and Git; npm builds the fork's server from source during installation. The installer tracks the flow-projection branch by default; set `SYSML_LSP_PACKAGE_SPEC` to a full commit ref for a reproducible snapshot. The `sysml-rpc` backend keeps its LSP process alive and reuses the server's parse cache for an unchanged workspace. SVG rendering requires Graphviz (`dot`); the automated macOS installer installs it when missing. See [the complete setup](docs/lsp-parser.md). Without the language server, model commands report an explicit error rather than using an incomplete parser.
+Keep `sysml` and `sysml-rpc` from this same virtual environment: other packages may install unrelated commands with those names. Vim/Neovim default to the paired executables under this install root, and the full installer also writes both paths explicitly. The language server requires Node.js 20 or newer and Git; npm builds the fork's server from source during installation. The installer tracks the flow-projection branch by default; set `SYSML_LSP_PACKAGE_SPEC` to a full commit ref for a reproducible snapshot. The `sysml-rpc` backend keeps its LSP process alive and reuses the server's parse cache for an unchanged workspace. SVG rendering requires Graphviz (`dot`); the automated macOS installer installs it when missing. See [the complete setup](docs/lsp-parser.md). Without the language server, model commands report an explicit error rather than using an incomplete parser.
 
 ### Full one-line Vim install (macOS)
 
@@ -129,8 +132,11 @@ Example request line:
 ## Development
 
 ```bash
-python -m pip install -e .[dev]
-pytest -q
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+install_root=${SYSML_VIM_INSTALL_ROOT:-"$data_home/sysml-vim"}
+python3 -m venv "$install_root/venv"
+"$install_root/venv/bin/python" -m pip install -e '.[dev]'
+"$install_root/venv/bin/python" -m pytest -q
 ```
 
 See `CHANGELOG.md` and `CONTRIBUTING.md`.

@@ -55,8 +55,9 @@ SVG rendering use the same resolved presentation. For example:
 ```
 
 ```sh
-sysml view composition --focus bleTraceView --format graph
-sysml view composition --focus bleTraceView --format graph-json
+sysml="$HOME/.local/share/sysml-vim/venv/bin/sysml"
+"$sysml" view composition --focus bleTraceView --format graph
+"$sysml" view composition --focus bleTraceView --format graph-json
 ```
 
 Only relationships and attributes present in the language-server projection
