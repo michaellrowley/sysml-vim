@@ -21,6 +21,27 @@ def test_adapter_reports_disabled_mode(monkeypatch):
         adapter.parse_workspace(Path("."), [])
 
 
+def test_adapter_discovers_server_under_install_root(monkeypatch, tmp_path):
+    server_path = (
+        tmp_path
+        / "lsp"
+        / "node_modules"
+        / "sysml-v2-lsp"
+        / "dist"
+        / "server"
+        / "server.js"
+    )
+    server_path.parent.mkdir(parents=True)
+    server_path.touch()
+    monkeypatch.delenv("SYSML_LSP_COMMAND", raising=False)
+    monkeypatch.delenv("SYSML_LSP_SERVER", raising=False)
+    monkeypatch.setenv("SYSML_VIM_INSTALL_ROOT", str(tmp_path))
+
+    adapter = SysMLLspAdapter()
+
+    assert adapter.server_path == server_path
+
+
 def test_adapter_uses_the_lsp_model_and_diagnostics_contract(monkeypatch):
     monkeypatch.setenv("SYSML_LSP_SERVER", "/missing/sysml-lsp/server.js")
     adapter = SysMLLspAdapter()

@@ -29,6 +29,7 @@ missing Git, Python 3.11+, Node.js 20+, Vim, or Graphviz (`dot`) dependencies.
 Overrides:
   SYSML_VIM_INSTALL_ROOT  data and Python environment directory
   SYSML_VIM_PLUGIN_DIR    Vim package install location
+  XDG_DATA_HOME           user data directory (default: ~/.local/share)
   SYSML_LSP_PACKAGE_SPEC  npm package spec (default: the flow projection branch)
   SYSML_LSP_PACKAGE_VERSION  legacy npm-version override
 HELP
@@ -68,7 +69,8 @@ command -v git >/dev/null 2>&1 || fail "Git is required to install the SysML lan
 command -v vim >/dev/null 2>&1 || fail "Vim is required"
 
 home_directory=${HOME:?HOME must be set}
-install_root=${SYSML_VIM_INSTALL_ROOT:-"$home_directory/.local/share/sysml-vim"}
+data_home=${XDG_DATA_HOME:-"$home_directory/.local/share"}
+install_root=${SYSML_VIM_INSTALL_ROOT:-"$data_home/sysml-vim"}
 mkdir -p "$install_root"
 install_root=$(cd "$install_root" && pwd -P)
 

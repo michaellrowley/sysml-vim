@@ -3,8 +3,41 @@ if exists('g:loaded_sysml_vim')
 endif
 let g:loaded_sysml_vim = 1
 
-if !exists('g:sysml_backend_cmd')
-  let g:sysml_backend_cmd = 'sysml'
+function! s:default_backend_commands() abort
+  let install_root = !empty($SYSML_VIM_INSTALL_ROOT)
+        \ ? expand('$SYSML_VIM_INSTALL_ROOT')
+        \ : (empty($XDG_DATA_HOME)
+        \ ? expand('~/.local/share')
+        \ : expand('$XDG_DATA_HOME')) . '/sysml-vim'
+  let windows = has('win32') || has('win64')
+  let bin_directory = install_root . (windows ? '/venv/Scripts' : '/venv/bin')
+  let suffix = windows ? '.exe' : ''
+  let backend_command = bin_directory . '/sysml' . suffix
+  let rpc_command = bin_directory . '/sysml-rpc' . suffix
+  return [backend_command, rpc_command]
+endfunction
+
+function! s:sibling_backend_command(command, sibling) abort
+  let executable_path = a:command =~# '[/\\]'
+        \ ? expand(a:command)
+        \ : exepath(a:command)
+  if empty(executable_path)
+    return a:sibling
+  endif
+  let suffix = has('win32') || has('win64') ? '.exe' : ''
+  return fnamemodify(executable_path, ':h') . '/' . a:sibling . suffix
+endfunction
+
+let s:default_commands = s:default_backend_commands()
+let s:has_backend_command = !empty(get(g:, 'sysml_backend_cmd', ''))
+let s:has_rpc_command = !empty(get(g:, 'sysml_rpc_cmd', ''))
+if s:has_backend_command && !s:has_rpc_command
+  let g:sysml_rpc_cmd = s:sibling_backend_command(g:sysml_backend_cmd, 'sysml-rpc')
+elseif s:has_rpc_command && !s:has_backend_command
+  let g:sysml_backend_cmd = s:sibling_backend_command(g:sysml_rpc_cmd, 'sysml')
+elseif !s:has_backend_command && !s:has_rpc_command
+  let g:sysml_backend_cmd = s:default_commands[0]
+  let g:sysml_rpc_cmd = s:default_commands[1]
 endif
 if !exists('g:sysml_default_view')
   let g:sysml_default_view = 'composition'
@@ -12,10 +45,6 @@ endif
 if !exists('g:sysml_use_rpc')
   let g:sysml_use_rpc = 1
 endif
-if !exists('g:sysml_rpc_cmd')
-  let g:sysml_rpc_cmd = 'sysml-rpc'
-endif
-
 command! -nargs=* V2 call sysml#command(<f-args>)
 command! -nargs=? V2g call sysml#graph(<f-args>)
 command! -nargs=0 V2h call sysml#help()

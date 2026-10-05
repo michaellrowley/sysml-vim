@@ -14,7 +14,9 @@ corresponding adapter, client, workspace, and integration tests.
 ## Integration contract
 
 - `SYSML_LSP_COMMAND` takes precedence over `SYSML_LSP_SERVER`; otherwise the
-  adapter discovers the pinned package entry point. Keep configuration and
+  adapter uses `SYSML_LSP_SERVER` when set, then discovers the pinned package
+  under `SYSML_VIM_INSTALL_ROOT`, `XDG_DATA_HOME/sysml-vim`, or
+  `~/.local/share/sysml-vim`, in that order. Keep configuration and
   health/status reporting consistent with this behavior.
 - The client speaks standard Content-Length-framed LSP over stdio, while
   `sysml/model` is a server-specific projection. Do not treat it as a standard

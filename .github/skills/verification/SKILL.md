@@ -15,8 +15,10 @@ description: Use when selecting tests, validating cross-layer changes, or updati
 - Use `tests/test_lsp_integration.py` with the pinned `SYSML_LSP_SERVER` for
   changes whose correctness depends on the published parser package.
 - For editor changes, run relevant Vim smoke scripts:
-  `tests/vim_smoke.vim`, `tests/vim_lsp_smoke.vim`, and
-  `tests/vim_view_smoke.vim`; check Neovim when available and affected.
+  `tests/vim_smoke.vim`, `tests/vim_backend_config_smoke.vim`,
+  `tests/vim_lsp_smoke.vim`, and `tests/vim_view_smoke.vim`; run
+  `tests/nvim_backend_config.lua` when Neovim configuration is affected.
+  Check Neovim when available and affected.
 - Follow the CI workflow for wider validation. Report checks that could not
   run rather than implying they passed.
 

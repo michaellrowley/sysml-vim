@@ -7,8 +7,9 @@ if !exists(':V2') || !exists(':V2g') || !exists(':V2h') || !exists(':V2c')
 endif
 
 let $PYTHONPATH = getcwd() . '/src' . (empty($PYTHONPATH) ? '' : ':' . $PYTHONPATH)
-let g:sysml_rpc_cmd = exepath('sysml-rpc')
-if empty(g:sysml_rpc_cmd)
+let g:sysml_backend_cmd = $SYSML_VIM_INSTALL_ROOT . '/venv/bin/sysml'
+let g:sysml_rpc_cmd = $SYSML_VIM_INSTALL_ROOT . '/venv/bin/sysml-rpc'
+if !executable(g:sysml_backend_cmd) || !executable(g:sysml_rpc_cmd)
   cquit 7
 endif
 let g:sysml_rpc_timeout_ms = 10000

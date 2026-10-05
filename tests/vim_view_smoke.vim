@@ -7,7 +7,11 @@ source plugin/sysml.vim
 let $PYTHONPATH = s:repository_root . '/src' . (empty($PYTHONPATH) ? '' : ':' . $PYTHONPATH)
 let $SYSML_LSP_COMMAND = 'python3 ' . shellescape(s:repository_root . '/tests/fixtures/mock_lsp_server.py')
 let $SYSML_LSP_SERVER = ''
-let g:sysml_rpc_cmd = exepath('sysml-rpc')
+let g:sysml_backend_cmd = $SYSML_VIM_INSTALL_ROOT . '/venv/bin/sysml'
+let g:sysml_rpc_cmd = $SYSML_VIM_INSTALL_ROOT . '/venv/bin/sysml-rpc'
+if !executable(g:sysml_backend_cmd) || !executable(g:sysml_rpc_cmd)
+  cquit 9
+endif
 let g:sysml_rpc_timeout_ms = 10000
 let g:sysml_view_refresh_delay_ms = 100
 let s:workspace = s:repository_root . '/tests/fixtures/workspace'

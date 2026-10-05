@@ -1,5 +1,10 @@
 # Commands
 
+For direct CLI invocations, use the `sysml` executable from the same dedicated
+virtual environment as `sysml-rpc` (normally
+`~/.local/share/sysml-vim/venv/bin`), or prepend that environment's `bin`
+directory to `PATH`.
+
 ## CLI
 
 - `sysml check [path]`
@@ -40,8 +45,8 @@ All commands that read a model require the configured SysML language server. See
 To use an OMG standard SysML v2 view presentation, focus a view usage typed by
 the corresponding standard view definition (or a custom definition that
 specializes it). For example, `:V2g bleTraceView` and
-`sysml view composition --focus bleTraceView --format graph` resolve the
-view usage's definition and render its presentation. `composition` remains the
+the CLI command from the configured backend environment resolve the view
+usage's definition and render its presentation. `composition` remains the
 backend view query; the SysML view definition, not a new CLI type name, selects
 the presentation. See [view presentations](views.md#standard-sysml-v2-view-definitions).
 

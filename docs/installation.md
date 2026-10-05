@@ -5,23 +5,41 @@
 Install the Python package and development dependencies from a checkout:
 
 ```bash
-python3 -m pip install -e '.[dev]'
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+install_root=${SYSML_VIM_INSTALL_ROOT:-"$data_home/sysml-vim"}
+python3 -m venv "$install_root/venv"
+"$install_root/venv/bin/python" -m pip install -e '.[dev]'
 ```
 
 Model commands also require Node.js 20 or newer, Git, and the SysML v2 language server. The server package is installed separately from Python and builds from the pinned flow-projection branch:
 
 ```bash
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+install_root=${SYSML_VIM_INSTALL_ROOT:-"$data_home/sysml-vim"}
 npm install \
-  --prefix "$HOME/.local/share/sysml-vim/lsp" \
+  --prefix "$install_root/lsp" \
   --no-save \
   --no-package-lock \
   --no-audit \
   --no-fund \
   'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
-export SYSML_LSP_SERVER="$HOME/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
+export SYSML_LSP_SERVER="$install_root/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
 ```
 
-Run `sysml parser-status` to check configuration and `sysml check <workspace>` to start the server and verify that it can parse model files. Full details and limitations are in [the parser integration guide](lsp-parser.md).
+Run the commands from the dedicated environment to avoid a different `sysml`
+package earlier on `PATH`:
+
+```bash
+data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
+install_root=${SYSML_VIM_INSTALL_ROOT:-"$data_home/sysml-vim"}
+"$install_root/venv/bin/sysml" parser-status
+"$install_root/venv/bin/sysml" check tests/fixtures/workspace
+```
+
+The CLI and persistent RPC service must come from the same installation. The
+plugin prefers the paired `sysml` and `sysml-rpc` in this virtual environment;
+the automated installer also writes both absolute paths into Vim's config.
+Full parser details and limitations are in [the parser integration guide](lsp-parser.md).
 
 ## Automated full install on macOS
 
@@ -39,11 +57,18 @@ The installer uses Homebrew for missing Git, Python 3.11+, Node.js 20+, npm, Vim
 Plug 'michaellrowley/sysml-vim'
 ```
 
-Install the Python package and language server as described above, then ensure `SYSML_LSP_SERVER` is set in the environment that starts Vim. The variable can also be assigned in Vim configuration:
+Install the Python package and language server as described above, then ensure
+the editor uses both executables from the same virtual environment. The
+installer generates this configuration automatically. For a manual setup:
 
 ```vim
+let g:sysml_backend_cmd = expand('~/.local/share/sysml-vim/venv/bin/sysml')
+let g:sysml_rpc_cmd = expand('~/.local/share/sysml-vim/venv/bin/sysml-rpc')
 let $SYSML_LSP_SERVER = expand('~/.local/share/sysml-vim/lsp/node_modules/sysml-v2-lsp/dist/server/server.js')
 ```
+
+If you use a custom `SYSML_VIM_INSTALL_ROOT` or `XDG_DATA_HOME`, update these
+paths to match that installation.
 
 ## Neovim (lazy.nvim)
 
@@ -51,13 +76,20 @@ let $SYSML_LSP_SERVER = expand('~/.local/share/sysml-vim/lsp/node_modules/sysml-
 {
   "michaellrowley/sysml-vim",
   config = function()
-    vim.g.sysml_backend_cmd = "sysml"
-    vim.g.sysml_rpc_cmd = "sysml-rpc"
+    local data_home = vim.env.XDG_DATA_HOME or vim.fn.expand("~/.local/share")
+    local install_root = vim.env.SYSML_VIM_INSTALL_ROOT or (data_home .. "/sysml-vim")
+    require("sysml").setup({
+      backend_cmd = install_root .. "/venv/bin/sysml",
+      rpc_cmd = install_root .. "/venv/bin/sysml-rpc",
+    })
+    vim.env.SYSML_LSP_SERVER = install_root
+      .. "/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
   end,
 }
 ```
 
-Install the same Python and Node dependencies as for Vim. Neovim must inherit `SYSML_LSP_SERVER`; when using the automated installer, the generated Vim configuration includes it.
+Install the same Python and Node dependencies as for Vim. The CLI, RPC
+executable, and LSP path above all resolve under the same installation root.
 
 ## Vim native packages
 

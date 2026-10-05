@@ -92,11 +92,20 @@ does not report pointer-hover events.
 ==============================================================================
 CONFIGURATION                                        *sysml-vim-configuration*
 
-let g:sysml_backend_cmd = 'sysml'
 let g:sysml_default_view = 'composition'
 let g:sysml_use_rpc = 1
-let g:sysml_rpc_cmd = 'sysml-rpc'
 let g:sysml_rpc_timeout_ms = 120000
+
+The plugin defaults to sysml and sysml-rpc in the dedicated virtual
+environment under SYSML_VIM_INSTALL_ROOT/venv (or
+XDG_DATA_HOME/sysml-vim/venv). To configure a custom installation, set both
+commands together:
+
+  let g:sysml_backend_cmd = expand('~/.local/share/sysml-vim/venv/bin/sysml')
+  let g:sysml_rpc_cmd = expand('~/.local/share/sysml-vim/venv/bin/sysml-rpc')
+
+Do not mix commands from different Python environments. See
+docs/configuration.md for details.
 
 ==============================================================================
 VIEWS                                                        *sysml-vim-views*
@@ -144,10 +153,10 @@ prefer collapsed folds.
 LIMITATIONS                                            *sysml-vim-limitations*
 
 Model commands require Node.js 20+ and the third-party sysml-v2-lsp package.
-Set SYSML_LSP_SERVER to its dist/server/server.js entry point in Vim's launch
-environment. The installer places the package under
-~/.local/share/sysml-vim/lsp and configures this variable. See
-docs/lsp-parser.md for full setup.
+The backend discovers the package under SYSML_VIM_INSTALL_ROOT or the
+XDG_DATA_HOME default. Set SYSML_LSP_SERVER to its dist/server/server.js
+entry point when installing elsewhere. The installer configures this variable.
+See docs/lsp-parser.md for full setup.
 
 The ANTLR grammar is derived from OMG textual KEBNF by a community project.
 The LSP project's semantic checks are not the official Pilot validator and

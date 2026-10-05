@@ -15,6 +15,10 @@ Inspect the relevant files among `plugin/sysml.vim`, `autoload/sysml.vim`,
 
 - Keep public command aliases, legacy `:Sysml*` commands, `<Plug>` mappings,
   and documented defaults compatible unless a change is intentional.
+- Resolve `g:sysml_backend_cmd` and `g:sysml_rpc_cmd` as a matched pair from
+  `SYSML_VIM_INSTALL_ROOT`; if one is explicitly overridden, derive its
+  companion from the same executable directory rather than another `PATH`
+  entry.
 - Vimscript owns editor interactions; Python owns model parsing, indexing, and
   semantic views. Use the documented CLI/RPC boundary instead of duplicating
   model logic in Vimscript.

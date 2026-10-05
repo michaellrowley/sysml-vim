@@ -15,6 +15,9 @@ into `WorkspaceIndex` rather than implementing model operations twice.
 
 - Keep CLI and JSON-RPC capabilities aligned where appropriate, including
   view types and formats. Document deliberate differences.
+- Keep the editor's `sysml` and `sysml-rpc` executables from the same
+  sysml-vim installation under `SYSML_VIM_INSTALL_ROOT`; do not resolve
+  mismatched commands independently from `PATH`.
 - Preserve JSON-RPC 2.0 line-delimited stdio framing and stable error classes:
   unknown method, invalid parameters, and backend failure must not be reported
   as successful results.
