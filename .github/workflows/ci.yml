@@ -39,7 +39,8 @@ jobs:
             'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
           echo "SYSML_LSP_SERVER=$SYSML_VIM_INSTALL_ROOT/lsp/node_modules/sysml-v2-lsp/dist/server/server.js" >> "$GITHUB_ENV"
       - name: Run backend tests
-        run: "$SYSML_VIM_INSTALL_ROOT/venv/bin/python" -m pytest -q
+        run: |
+          "$SYSML_VIM_INSTALL_ROOT/venv/bin/python" -m pytest -q
       - name: CLI smoke checks
         run: |
           "$SYSML_VIM_INSTALL_ROOT/venv/bin/sysml" health --path tests/fixtures/workspace
