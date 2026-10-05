@@ -157,7 +157,7 @@ class SysMLLspAdapter:
     def _configuration_error() -> str:
         return (
             "SysML v2 parsing is unavailable: install sysml-v2-lsp from "
-            "michaellrowley/sysml-v2-lsp#feat/flow-usage-projection; set "
+            "daltskin/sysml-v2-lsp#main; set "
             "SYSML_LSP_SERVER to its server.js path or "
             "SYSML_VIM_INSTALL_ROOT to the sysml-vim data root. "
             "No local subset parser or fallback is provided."
@@ -397,6 +397,23 @@ class SysMLLspAdapter:
                 raise ParserBackendError(
                     f"language server returned an incomplete model element for {source_path}"
                 )
+            # Give upstream's anonymous item-flow elements a stable display name.
+            if (
+                not element_name
+                and element_type.lower() == "flow"
+                and element_attributes.get("isAnonymous") is True
+            ):
+                flow_source = element_attributes.get("flowSource")
+                flow_target = element_attributes.get("flowTarget")
+                if (
+                    isinstance(flow_source, str)
+                    and flow_source.strip()
+                    and isinstance(flow_target, str)
+                    and flow_target.strip()
+                ):
+                    element_name = (
+                        f"<flow {flow_source.strip()} to {flow_target.strip()}>"
+                    )
             converted_range = cls._convert_lsp_range(element_range)
             start_line = converted_range["line"] - 1
             element_record = {

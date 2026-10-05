@@ -31,11 +31,11 @@ packed into compact rows below connected structures.
 
 ## Upstream references used
 
-Checked on 2026-10-02:
+Checked on 2026-10-05:
 
 - `Systems-Modeling/SysML-v2-Release` HEAD: `fb97b754f29588b8e9c7a35f370880cd15eb29e7` (release `2026-08`)
 - `daltskin/sysml-v2-grammar` HEAD: `14b0d7a26d369a0096ac8b5db4d90685e1498b47` (ANTLR grammar generated from the `2026-08` KEBNF release)
-- `michaellrowley/sysml-v2-lsp` branch `feat/flow-usage-projection`, HEAD `deedc813f0d4d897869d24ef770321a2d98cecb7` (npm package `0.32.0`, fork of `daltskin/sysml-v2-lsp`)
+- `daltskin/sysml-v2-lsp` branch `main`, HEAD `c37e37ce4f07825528f598b18fc694654e7e9223` (npm package `0.34.0`, latest upstream main at verification)
 - The grammar and language server are community-maintained integrations; their tests and diagnostics do not establish official conformance.
 
 ## Features
@@ -78,7 +78,7 @@ data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
 install_root=${SYSML_VIM_INSTALL_ROOT:-"$data_home/sysml-vim"}
 python3 -m venv "$install_root/venv"
 "$install_root/venv/bin/python" -m pip install -e .
-npm install --prefix "$install_root/lsp" --no-save --no-package-lock --no-audit --no-fund 'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
+npm install --prefix "$install_root/lsp" --no-save --no-package-lock --no-audit --no-fund 'git+https://github.com/daltskin/sysml-v2-lsp.git#main'
 export SYSML_LSP_SERVER="$install_root/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
 "$install_root/venv/bin/sysml" health --path .
 "$install_root/venv/bin/sysml" parser-status
@@ -86,7 +86,7 @@ export SYSML_LSP_SERVER="$install_root/lsp/node_modules/sysml-v2-lsp/dist/server
 "$install_root/venv/bin/sysml" view composition --path tests/fixtures/workspace --format text
 ```
 
-Keep `sysml` and `sysml-rpc` from this same virtual environment: other packages may install unrelated commands with those names. Vim/Neovim default to the paired executables under this install root, and the full installer also writes both paths explicitly. The language server requires Node.js 20 or newer and Git; npm builds the fork's server from source during installation. The installer tracks the flow-projection branch by default; set `SYSML_LSP_PACKAGE_SPEC` to a full commit ref for a reproducible snapshot. The `sysml-rpc` backend keeps its LSP process alive and reuses the server's parse cache for an unchanged workspace. SVG rendering requires Graphviz (`dot`); the automated macOS installer installs it when missing. See [the complete setup](docs/lsp-parser.md). Without the language server, model commands report an explicit error rather than using an incomplete parser.
+Keep `sysml` and `sysml-rpc` from this same virtual environment: other packages may install unrelated commands with those names. Vim/Neovim default to the paired executables under this install root, and the full installer also writes both paths explicitly. The language server requires Node.js 20 or newer and Git; npm builds upstream main from source during installation. The installer tracks the moving `main` branch by default; set `SYSML_LSP_PACKAGE_SPEC` to the tested full commit ref for a reproducible snapshot. Anonymous item flows are named from their projected endpoints by the Python adapter. The `sysml-rpc` backend keeps its LSP process alive and reuses the server's parse cache for an unchanged workspace. SVG rendering requires Graphviz (`dot`); the automated macOS installer installs it when missing. See [the complete setup](docs/lsp-parser.md). Without the language server, model commands report an explicit error rather than using an incomplete parser.
 
 ### Full one-line Vim install (macOS)
 

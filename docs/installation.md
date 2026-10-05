@@ -11,7 +11,7 @@ python3 -m venv "$install_root/venv"
 "$install_root/venv/bin/python" -m pip install -e '.[dev]'
 ```
 
-Model commands also require Node.js 20 or newer, Git, and the SysML v2 language server. The server package is installed separately from Python and builds from the pinned flow-projection branch:
+Model commands also require Node.js 20 or newer, Git, and the SysML v2 language server. The server package is installed separately from Python and builds from the upstream `main` branch:
 
 ```bash
 data_home=${XDG_DATA_HOME:-"$HOME/.local/share"}
@@ -22,7 +22,7 @@ npm install \
   --no-package-lock \
   --no-audit \
   --no-fund \
-  'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
+  'git+https://github.com/daltskin/sysml-v2-lsp.git#main'
 export SYSML_LSP_SERVER="$install_root/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
 ```
 
@@ -49,7 +49,7 @@ With Homebrew installed, this one-line command clones sysml-vim into Vim's packa
 brew install git && mkdir -p "$HOME/.vim/pack/plugins/start" && git clone https://github.com/michaellrowley/sysml-vim "$HOME/.vim/pack/plugins/start/sysml-vim" && "$HOME/.vim/pack/plugins/start/sysml-vim/tools/install.sh"
 ```
 
-The installer uses Homebrew for missing Git, Python 3.11+, Node.js 20+, npm, Vim, or Graphviz (`dot`) dependencies; installs and builds the `sysml-v2-lsp` flow-projection branch; creates a dedicated Python virtual environment; activates the plugin without replacing an existing checkout; and adds an idempotent configuration include to `~/.vimrc`. Set `SYSML_LSP_PACKAGE_SPEC` to a full commit ref when a reproducible parser snapshot is required. Restart Vim after it completes. For an existing checkout, run `./tools/install.sh` from its root.
+The installer uses Homebrew for missing Git, Python 3.11+, Node.js 20+, npm, Vim, or Graphviz (`dot`) dependencies; installs and builds the latest `daltskin/sysml-v2-lsp` `main` branch; creates a dedicated Python virtual environment; activates the plugin without replacing an existing checkout; and adds an idempotent configuration include to `~/.vimrc`. Set `SYSML_LSP_PACKAGE_SPEC` to a full commit ref when a reproducible parser snapshot is required. Restart Vim after it completes. For an existing checkout, run `./tools/install.sh` from its root.
 
 ## Vim (vim-plug)
 
