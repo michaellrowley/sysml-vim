@@ -36,7 +36,7 @@ jobs:
             --no-package-lock \
             --no-audit \
             --no-fund \
-            'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
+            'git+https://github.com/daltskin/sysml-v2-lsp.git#main'
           echo "SYSML_LSP_SERVER=$SYSML_VIM_INSTALL_ROOT/lsp/node_modules/sysml-v2-lsp/dist/server/server.js" >> "$GITHUB_ENV"
       - name: Run backend tests
         run: |

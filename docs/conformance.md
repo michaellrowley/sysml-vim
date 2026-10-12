@@ -6,7 +6,7 @@
 - Upstream refs used:
   - SysML-v2-Release `fb97b754f29588b8e9c7a35f370880cd15eb29e7`
   - `daltskin/sysml-v2-grammar` `14b0d7a26d369a0096ac8b5db4d90685e1498b47`
-  - `michaellrowley/sysml-v2-lsp` branch `feat/flow-usage-projection`, HEAD `deedc813f0d4d897869d24ef770321a2d98cecb7` (npm `0.32.0`, fork of `daltskin/sysml-v2-lsp`)
+  - `daltskin/sysml-v2-lsp` branch `main`, verified 2026-10-05 at HEAD `c37e37ce4f07825528f598b18fc694654e7e9223` (npm `0.34.0`)
 
 ## Parser integration
 

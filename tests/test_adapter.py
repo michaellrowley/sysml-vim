@@ -105,6 +105,37 @@ def test_adapter_maps_view_usage_kind():
     assert SysMLLspAdapter._symbol_kind("view") == "view_usage"
 
 
+def test_adapter_names_anonymous_projected_flows_from_endpoints():
+    symbols, flattened_elements = SysMLLspAdapter._flatten_model_elements(
+        "/workspace/flow.sysml",
+        "package FlowFixture {\n  interface def Link {\n    flow of Payload from source.output to target.input;\n  }\n}\n",
+        [
+            {
+                "type": "flow",
+                "name": "",
+                "range": {
+                    "start": {"line": 2, "character": 4},
+                    "end": {"line": 2, "character": 55},
+                },
+                "children": [],
+                "attributes": {
+                    "isAnonymous": True,
+                    "itemType": "Payload",
+                    "flowSource": "source.output",
+                    "flowTarget": "target.input",
+                },
+                "relationships": [],
+            }
+        ],
+        {},
+    )
+
+    assert symbols[0]["name"] == "<flow source.output to target.input>"
+    assert symbols[0]["kind"] == "flow"
+    assert symbols[0]["attributes"]["itemType"] == "Payload"
+    assert flattened_elements[0]["name"] == symbols[0]["name"]
+
+
 @pytest.mark.parametrize(
     ("reported_version", "configured"),
     [("v18.20.0", False), ("v20.0.0", True)],

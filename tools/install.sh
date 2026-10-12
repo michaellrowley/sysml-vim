@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly LSP_PACKAGE_NAME="sysml-v2-lsp"
-readonly DEFAULT_LSP_PACKAGE_SPEC="git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection"
+readonly DEFAULT_LSP_PACKAGE_SPEC="git+https://github.com/daltskin/sysml-v2-lsp.git#main"
 
 fail() {
   printf 'sysml-vim installer: %s\n' "$1" >&2
@@ -30,7 +30,7 @@ Overrides:
   SYSML_VIM_INSTALL_ROOT  data and Python environment directory
   SYSML_VIM_PLUGIN_DIR    Vim package install location
   XDG_DATA_HOME           user data directory (default: ~/.local/share)
-  SYSML_LSP_PACKAGE_SPEC  npm package spec (default: the flow projection branch)
+  SYSML_LSP_PACKAGE_SPEC  npm package spec (default: upstream main branch)
   SYSML_LSP_PACKAGE_VERSION  legacy npm-version override
 HELP
   exit 0

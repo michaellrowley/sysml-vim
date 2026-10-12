@@ -1,6 +1,6 @@
 # SysML v2 language-server integration
 
-sysml-vim delegates textual parsing, diagnostics, document symbols, references, and model projections to [`michaellrowley/sysml-v2-lsp`](https://github.com/michaellrowley/sysml-v2-lsp/tree/feat/flow-usage-projection), currently tracking its `feat/flow-usage-projection` branch. This fork adds projected item-flow symbols with payload types and endpoint paths. Its TypeScript server uses generated ANTLR parser code based on the community [`daltskin/sysml-v2-grammar`](https://github.com/daltskin/sysml-v2-grammar), which translates OMG SysML and KerML textual KEBNF. sysml-vim contains no SysML grammar or local subset-parser fallback.
+sysml-vim delegates textual parsing, diagnostics, document symbols, references, and model projections to [`daltskin/sysml-v2-lsp`](https://github.com/daltskin/sysml-v2-lsp/tree/main), tracking its moving `main` branch. Its TypeScript server uses generated ANTLR parser code based on the community [`daltskin/sysml-v2-grammar`](https://github.com/daltskin/sysml-v2-grammar), which translates OMG SysML and KerML textual KEBNF. The server projects item-flow payload types and endpoint paths; because anonymous flows may have no projected name, sysml-vim labels them from those endpoints. sysml-vim contains no SysML grammar or local subset-parser fallback.
 
 This is a third-party parser integration, not the OMG Pilot or an official OMG SDK. The LSP project also implements its own semantic checks and a selected model projection. Those checks are not equivalent to the Pilot validator, and neither the parser bridge nor the sysml-vim index claims complete normative SysML 2.0/KerML 1.0 conformance.
 
@@ -8,7 +8,7 @@ This is a third-party parser integration, not the OMG Pilot or an official OMG S
 
 - Python 3.11 or newer for the sysml-vim backend.
 - Node.js 20 or newer, npm, and Git for installing and building the language server from its GitHub source.
-- The `michaellrowley/sysml-v2-lsp` `feat/flow-usage-projection` branch (package version `0.32.0`).
+- The `daltskin/sysml-v2-lsp` `main` branch (tested at HEAD `c37e37ce4f07825528f598b18fc694654e7e9223`, package version `0.34.0`).
 
 Install the package into a user data directory:
 
@@ -21,14 +21,14 @@ npm install \
   --no-package-lock \
   --no-audit \
   --no-fund \
-  'git+https://github.com/michaellrowley/sysml-v2-lsp.git#feat/flow-usage-projection'
+  'git+https://github.com/daltskin/sysml-v2-lsp.git#main'
 export SYSML_LSP_SERVER="$install_root/lsp/node_modules/sysml-v2-lsp/dist/server/server.js"
 ```
 
 The Git dependency's `prepare` script compiles the server entry point from
-source. For a reproducible snapshot rather than the moving branch default,
+source. The default follows upstream `main`; for a reproducible snapshot,
 override `SYSML_LSP_PACKAGE_SPEC` with the same Git URL and a full commit SHA.
-The automated installer uses this branch by default and configures both
+The automated installer uses this moving branch by default and configures both
 backend executables and the language-server path under the same install root.
 
 The Python backend discovers the server under `SYSML_VIM_INSTALL_ROOT` when
@@ -84,7 +84,7 @@ The adapter checks the package version, requested files, document versions, sour
 
 ## Scope and limitations
 
-- The ANTLR grammar is a community translation of OMG KEBNF with project-maintained patches. The default Git ref tracks the requested flow-projection branch; use a full commit SHA through `SYSML_LSP_PACKAGE_SPEC` for reproducible installs, and test parser changes against the actual package.
+- The ANTLR grammar is a community translation of OMG KEBNF; the default Git ref tracks upstream `main` as requested. Use a full commit SHA through `SYSML_LSP_PACKAGE_SPEC` for reproducible installs, and test parser changes against the actual built package.
 - Syntax parsing does not by itself provide semantic conformance. The LSP semantic checks are independently implemented and may be incomplete or produce diagnostics that differ from the Pilot.
 - The `sysml/model` custom request returns a selected projection, not a complete SysML/KerML semantic model. Some relationships and source locations may not be exposed by that projection.
 - The grammar can lag an OMG release or have known translation/error-recovery gaps. A passing parse is not proof that a model satisfies every normative rule.
