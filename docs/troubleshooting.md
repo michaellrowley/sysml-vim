@@ -1,6 +1,7 @@
 # Troubleshooting
 
 - `sysml: command not found`: install the backend in the dedicated environment as described in [installation](installation.md), or set `g:sysml_backend_cmd` and `g:sysml_rpc_cmd` to the matching executables.
+- `configure SYSML_PILOT_COMMAND or SYSML_PILOT_RPC_COMMAND`: this message comes from the retired Pilot adapter, not the current backend. Update the sysml-vim checkout and run `./tools/install.sh` from its root, then fully restart Vim/Neovim. Confirm `g:sysml_backend_cmd` and `g:sysml_rpc_cmd` point into the same `$SYSML_VIM_INSTALL_ROOT/venv` (default `~/.local/share/sysml-vim/venv`); `sysml parser-status` from that environment should report `SysML v2 Language Server (ANTLR)`. The current installer installs `sysml-v2-lsp`, not the OMG Pilot; see [installation](installation.md).
 - `sysml health` reports an unexpected parser (for example, Pilot) or the
   backend reports `parser_bridge_configured: false`: Vim is resolving a
   different `sysml`/`sysml-rpc` installation. Point both commands at the same
