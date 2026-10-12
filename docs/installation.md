@@ -51,6 +51,10 @@ brew install git && mkdir -p "$HOME/.vim/pack/plugins/start" && git clone https:
 
 The installer uses Homebrew for missing Git, Python 3.11+, Node.js 20+, npm, Vim, or Graphviz (`dot`) dependencies; installs and builds the `sysml-v2-lsp` flow-projection branch; creates a dedicated Python virtual environment; activates the plugin without replacing an existing checkout; and adds an idempotent configuration include to `~/.vimrc`. Set `SYSML_LSP_PACKAGE_SPEC` to a full commit ref when a reproducible parser snapshot is required. Restart Vim after it completes. For an existing checkout, run `./tools/install.sh` from its root.
 
+The installer does not clone or build the OMG SysML v2 Pilot. sysml-vim replaced
+its Pilot bridge with the `sysml-v2-lsp` integration; installing the Pilot alone
+will not satisfy the old `SYSML_PILOT_COMMAND` bridge configuration.
+
 ## Vim (vim-plug)
 
 ```vim
